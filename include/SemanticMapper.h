@@ -2,131 +2,127 @@
 #define SEMANTIC_MAPPER
 
 #include "System.h"
-//#include "SemanticMapPoint.h"
+#include "SemanticMapPoint.h"
 
-namespace ORB_SLAM2{
+namespace ORB_SLAM2
+{
 
 class System;
+
 class Tracking;
+
+class FrameDrawer;
 //class SemanticMapPoint;
 //struct LabelPoint;
 
-enum eSPointStatus{
-    UNDETERMINE = 0,
-    OBSERVING,
-    STABLE
+
+
+struct FrameDataBuffer
+{
+int nId;
+std::vector<bool> mvbValid;
+cv::Mat tcw;
+cv::Mat disparity;
+cv::Mat segment;
+
+FrameDataBuffer(int id, const cv::Mat &t, const cv::Mat &dis, const cv::Mat &seg, const std::vector<bool> &vl) :
+        nId(id), tcw(t.clone()), disparity(dis.clone()), mvbValid(vl), segment(seg.clone())
+{
+}
+
 };
 
-class SemanticMapPoint{
 
-public:
-//    SemanticMapPoint(){};
-    SemanticMapPoint(const cv::Mat & pt3d,int label):
-    mnobserveTime(1),mLabel(label),mSatus(UNDETERMINE)
-    {
-        pt3d.copyTo(mLocation);
-        mLocationObservation[label].push_back(pt3d);
-        mLabelObservation[label]++;
-    }
-    inline void AssertObservation(const cv::Mat & pt3d,int label)
-    {
-        mLocationObservation[label].push_back(pt3d);
-        mLabelObservation[label]++;
-        mnobserveTime++;
-    }
-    inline void AssertObservation(SemanticMapPoint* pSPoint)
-    {
-        mLocationObservation[pSPoint->mLabel].push_back(pSPoint->mLocation);
-        mLabelObservation[pSPoint->mLabel]++;
-        mnobserveTime++;
-        mSatus = pSPoint->mSatus;
-    }
-    inline int GetObervetime() {return mnobserveTime;}
-    inline void SetStatus(eSPointStatus status){mSatus = status;}
-
-public:
-    cv::Mat mLocation;
-    int mLabel;
-    eSPointStatus mSatus;
-    std::map<int, int > mLabelObservation;
-    std::map<int,std::vector<cv::Mat> >mLocationObservation;
-    int mnobserveTime;
-};
-
-//感觉应该写成KeyFrame。。。
 class SemanticMapper;
 
-class CloudPointNode{
+class SemanticMapPoint;
+
+class PointCloudNode
+{
 public:
-    CloudPointNode(){}
-    CloudPointNode(SemanticMapper* mapper,const std::vector<LabelPoint>& labelPoints,const cv::Mat& Tcw_,
-                   const cv::Mat& k_,const int& h,const int& w);
-    void PassInformationFromNode(CloudPointNode* lasNode);
-    void UpdatePointCloudStatus();
+  PointCloudNode()
+  {}
+
+  PointCloudNode(SemanticMapper *mapper, FrameDataBuffer *pFrameData);
+
+  void PassInformationByNode(PointCloudNode *lastNode);
+//    void UpdatePointCloudStatus();
 public:
-    cv::Mat Tcw;
-    cv::Mat K;
-    std::vector<SemanticMapPoint*> mvpMapPoints;
-    int mnFrameWidth;
-    int mnFrameHeight;
-    SemanticMapper* mpSemanticMapper;
+  cv::Mat mTcw;
+  cv::Mat mK;
+  std::vector<SemanticMapPoint *> mvpMapPoints;
+  int mnRowStart;
+  int mnRowEnd;
+  int mnColStart;
+  int mnColEnd;
+  int mnFrameWidth;
+  int mnFrameHeight;
+  float mbf;
+  SemanticMapper *mpSemanticMapper;
 };
 
 
-class SemanticMapper{
+class SemanticMapper
+{
 
 public:
-    SemanticMapper(System* pSys,Tracking* pTracking,const string &strSettingPath);
-    void UpdateFrame(Frame *pFrame);
-    cv::Mat DrawColorMap(cv::Mat& input);
-//    void SegmentRefine();  //这个暂时没有用处，因为主要是片状噪音，用语义难以消除
-    void SavePointCloud();
-    void Run();
-    float getAverage(const cv::Mat& img,int step,int u,int v,int& count);
-    void UpdateReferencePointCloud(Frame* pFrame);
-    void DrawCurrentCamera();
-    void DrawAllSemanticPoint();
-    void SetPointUpdateStatus(bool status);
-    void AddMapPoint(LabelPoint& lPoint);
-    void DrawCurrentFramePointCloud();
-    std::vector<LabelPoint> mvSemanticMapPoints;
-    std::mutex mMutexSemanticMapPoints;
+  SemanticMapper(System *pSys, Tracking *pTracking, FrameDrawer *pFrameDrawer, const string &strSettingPath);
 
-    std::mutex mMutexPointUpdate;
-    bool mbPointStatusUpdate;
+  void UpdateFrame(Frame *pFrame);
 
+  void Run();
+
+  void UpdateReferencePointCloud(FrameDataBuffer *pFrameData);
+
+  void ProcessNewData();
+
+  void AddMapPoint(const cv::Mat &w3d, int label);
+
+  void DrawAllSemanticPoint();
+
+  void SavePointCloud();
+
+  void SetPointUpdateStatus(bool status);
+
+  cv::Mat DrawColorMap(cv::Mat &input);
+
+public:
+  std::vector<LabelPoint *> mvSemanticMapPoints;
+  std::mutex mMutexSemanticMapPoints;
+  std::mutex mMutexPointUpdate;
+  bool mbPointStatusUpdate;
+  cv::Mat mK;
+  float mbf;
+  float cx, cy;
+  float fx, fy;
+  float invfx;
+  float invfy;
+//    int mnFrameWidth;
+//    int mnFrameHeight;
 private:
 //    vector<LabelPoint> mvSemiDensePoints;
-    float mViewpointX, mViewpointY, mViewpointZ, mViewpointF;
-    // 1/fps in ms
-    double mT;
+  float mViewpointX, mViewpointY, mViewpointZ, mViewpointF;
+  // 1/fps in ms
+  double mT;
 //    std::mutex mMutexPoints;
-    Tracking* mpTracker;
-    System* mpSystem;
+  Tracking *mpTracker;
+  FrameDrawer *mpFrameDrawer;
 
-    std::mutex mMutexDisparity;
-    cv::Mat mImDisparityOrigin;
+  System *mpSystem;
 
-    std::mutex mMutexSegment;
-    cv::Mat mImSegmentOrign;
+  std::list<FrameDataBuffer *> mlDataBuffer;
+  std::mutex mMutexFrameDataBuffer;
+  FrameDataBuffer *mpCurrentData;
 
-    cv::Mat mCameraPose;
-    std::mutex mMutexCamera;
-
-    int mnFrameWidth;
-    int mnFrameHeight;
-
-    Frame* mCurrentFrame;
-    std::vector<LabelPoint> mCurrentPointCloud;
-    bool mbPointCloudUdate;
-    std::mutex mMutexCurrentFrame;
+  std::vector<LabelPoint> mvCurrentPointCloud;
+  bool mbPointCloudUdate;
+  std::mutex mMutexCurrentFrame;
 //    std::list<SemanticMapPoint*> mvAllSemanticMappoint;
 
-    CloudPointNode* mCurrentReferenceNode;
-    bool mbNeedNewNode;
-
-    int mPointSize;
-
+  PointCloudNode *mReferenceNode;
+  bool mbNeedNewNode;
+  bool mbFinish;
+  int mPointSize;
 
 
 };

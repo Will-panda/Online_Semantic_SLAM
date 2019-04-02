@@ -119,7 +119,7 @@ cv::Mat FrameDrawer::DrawFrame()
                 else // This is match to a "visual odometry" MapPoint created in the last frame
                 {
                     cv::rectangle(im,pt1,pt2,cv::Scalar(255,0,0));
-                    cv::circle(im,vCurrentKeys[i].pt,2,cv::Scalar(255,0,0),-1);
+                    cv::circle(im,vCurrentKeys[i].pt,2,cv::Scalar(255,255,0),-1);
                     mnTrackedVO++;
                 }
             }
@@ -130,6 +130,17 @@ cv::Mat FrameDrawer::DrawFrame()
     DrawTextInfo(im,state, imWithInfo);
 
     return imWithInfo;
+}
+cv::Mat FrameDrawer::DebugDynamic()
+{
+    unique_lock<mutex> lock(mMutex);
+    return mImDynamicProposal;
+}
+
+cv::Mat FrameDrawer::DebugOpticalFlow()
+{
+    unique_lock<mutex> lock(mMutex);
+    return mImOpticalFlowDebug;
 }
 
 cv::Mat FrameDrawer::DrawDisparity(){
@@ -152,12 +163,12 @@ cv::Mat FrameDrawer::DrawDisparity(){
             }
         }
     }
-    //转换到255的区间
+    //
     for (int i = 0; i < mImDisparity.rows; ++i) {
         for (int j = 0; j < mImDisparity.cols; ++j) {
             float valf = 255.0 * mImDisparity.at<float>(i,j) / maxVal;
 
-            //只看梯度比较大的点的视差
+            //
             if(mImDebugMaxGrad.at<float>(i,j) > minUsedGrad)
             {
                 if(mImDebugSegment.at<uchar>(i,j) == ROAD ||
@@ -167,7 +178,7 @@ cv::Mat FrameDrawer::DrawDisparity(){
             }
         }
     }
-    //将灰度转为伪色图
+    //
     cv::Mat imDisparitycolor;
     cv::applyColorMap(disparityVize, imDisparitycolor, cv::COLORMAP_JET);
     return imDisparitycolor;
@@ -275,9 +286,10 @@ void FrameDrawer::Update(Tracking *pTracker)
 {
     unique_lock<mutex> lock(mMutex);
     pTracker->mImGray.copyTo(mIm);
-
+    pTracker->mImDebugDynamicProposal.copyTo(mImDynamicProposal);
+    pTracker->mImDebugOptiFlow.copyTo(mImOpticalFlowDebug);
     pTracker->mCurrentFrame.mImDisparityLeft.copyTo(mImDisparity);
-    pTracker->mCurrentFrame.mGrandientMax.copyTo(mImDebugMaxGrad); //查看当前哪些最大梯度的点被跟踪
+    pTracker->mCurrentFrame.mGrandientMax.copyTo(mImDebugMaxGrad);
     pTracker->mCurrentFrame.mImSegment.copyTo(mImDebugSegment);
 
     mnMappableRatio = pTracker->mCurrentFrame.GetMappableRatio();
@@ -285,6 +297,7 @@ void FrameDrawer::Update(Tracking *pTracker)
     N = mvCurrentKeys.size();
     mvbVO = vector<bool>(N,false);
     mvbMap = vector<bool>(N,false);
+    mvbOutlier = vector<bool>(N,false);
     mbOnlyTracking = pTracker->mbOnlyTracking;
 
     if(pTracker->mLastProcessedState==Tracking::NOT_INITIALIZED)

@@ -31,16 +31,15 @@ LIST(APPEND CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake_modules)
 set(CMAKE_PREFIX_PATH “/usr/local/share//OpenCV”)
 
 find_package(OpenCV 3.0 QUIET)
+find_package(Pangolin REQUIRED)
+find_package(PCL REQUIRED)
+
 if(NOT OpenCV_FOUND)
    find_package(OpenCV 2.4.3 QUIET)
    if(NOT OpenCV_FOUND)
       message(FATAL_ERROR "OpenCV > 2.4.3 not found.")
    endif()
 endif()
-find_package(Pangolin REQUIRED)
-
-find_package(PCL REQUIRED)
-
 
 include_directories(
         /usr/local/include
@@ -50,10 +49,10 @@ include_directories(
         ${Pangolin_INCLUDE_DIRS}
         ${PCL_INCLUDE_DIRS}
 )
-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/lib)
-
+add_definitions(${PCL_DEFINITIONS})
 link_directories(${PCL_LIBRARY_DIRS})
 
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/lib)
 add_library(${PROJECT_NAME} SHARED
 src/System.cc
 src/Tracking.cc
@@ -74,7 +73,8 @@ src/KeyFrameDatabase.cc
 src/Sim3Solver.cc
 src/Initializer.cc
 src/Viewer.cc
-        src/SemanticMapper.cc
+src/SemanticMapper.cc
+src/SemanticMapPoint.cpp
 )
 
 target_link_libraries(${PROJECT_NAME}
@@ -86,36 +86,17 @@ ${PROJECT_SOURCE_DIR}/Thirdparty/libelas/lib/liblibelas.so
 ${PCL_LIBRARIES}
 )
 
-# Build examples
-
-#set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/Examples/RGB-D)
-
-#add_executable(rgbd_tum
-#Examples/RGB-D/rgbd_tum.cc)
-#target_link_libraries(rgbd_tum ${PROJECT_NAME})
-
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/Examples/Stereo)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/bin/)
 
 add_executable(stereo_kitti Examples/Stereo/stereo_semantic_kitti.cc)
 target_link_libraries(stereo_kitti ${PROJECT_NAME})
 
+#add_executable(bin_vocabulary tools/bin_vocabulary.cpp)
+#target_link_libraries(bin_vocabulary ${PROJECT_NAME})
 
-#add_executable(stereo_euroc
-#Examples/Stereo/stereo_euroc.cc)
-#target_link_libraries(stereo_euroc ${PROJECT_NAME})
-#
-#
-#set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/Examples/Monocular)
-#
-#add_executable(mono_tum
-#Examples/Monocular/mono_tum.cc)
-#target_link_libraries(mono_tum ${PROJECT_NAME})
-#
-#add_executable(mono_kitti
-#Examples/Monocular/mono_kitti.cc)
-#target_link_libraries(mono_kitti ${PROJECT_NAME})
-#
-#add_executable(mono_euroc
-#Examples/Monocular/mono_euroc.cc)
-#target_link_libraries(mono_euroc ${PROJECT_NAME})
+#add_executable(cal_disparity tools/cal_disparity.cpp)
+#target_link_libraries(cal_disparity ${PROJECT_NAME})
+
+#add_executable(test_speed tools/testSpeed.cpp)
+#target_link_libraries(test_speed ${PROJECT_NAME})
 

@@ -16,9 +16,10 @@
 using namespace std;
 
 void LoadImages(const string &strPathToSequence, vector<string> &vstrImageLeft,
-                vector<string> &vstrImageRight, vector<string> &vstrImageSeg, vector<double> &vTimestamps);
+                vector<string> &vstrImageRight, vector<string> &vstrImageSeg,
+                vector<string>& vstrImageDisparity,vector<double> &vTimestamps);
 
-
+void DrawDisparity(const cv::Mat& imDis);
 int main(int argc, char **argv)
 {
     if(argc != 4)
@@ -31,8 +32,10 @@ int main(int argc, char **argv)
     vector<string> vstrImageLeft;
     vector<string> vstrImageRight;
     vector<string> vstrImageSeg;
+    vector<string> vstrImageDisparity;
     vector<double> vTimestamps;
-    LoadImages(string(argv[3]), vstrImageLeft, vstrImageRight,vstrImageSeg,vTimestamps);
+
+    LoadImages(string(argv[3]), vstrImageLeft, vstrImageRight,vstrImageSeg,vstrImageDisparity,vTimestamps);
 
     // Retrieve trajectory of ground Truth
 //    string strPathGTFile = string(argv[3]) + "/pose.txt";
@@ -42,7 +45,8 @@ int main(int argc, char **argv)
     const int nImages = vstrImageLeft.size();
 
     // Create SLAM system. It initializes all system threads and gets ready to process frames.
-    ORB_SLAM2::System SLAM(argv[1],argv[2],ORB_SLAM2::System::STEREO,false,strPathGTFile);
+    bool useViewer = true;
+    ORB_SLAM2::System SLAM(argv[1],argv[2],ORB_SLAM2::System::STEREO,useViewer,strPathGTFile);
 
     // Vector for tracking time statistics
     vector<float> vTimesTrack;
@@ -53,7 +57,7 @@ int main(int argc, char **argv)
     cout << "Images in the sequence: " << nImages << endl << endl;
 
     // Main loop
-    cv::Mat imLeft, imRight,imSeg;
+    cv::Mat imLeft, imRight,imSeg,imDisparity;
     for(int ni=0; ni<nImages; ni++)
     {
 //        if(ni > 100) break;
@@ -61,6 +65,16 @@ int main(int argc, char **argv)
         imLeft = cv::imread(vstrImageLeft[ni],CV_LOAD_IMAGE_UNCHANGED);
         imRight = cv::imread(vstrImageRight[ni],CV_LOAD_IMAGE_UNCHANGED);
         imSeg = cv::imread(vstrImageSeg[ni],CV_LOAD_IMAGE_UNCHANGED);
+        imDisparity = cv::imread(vstrImageDisparity[ni],CV_LOAD_IMAGE_UNCHANGED);
+        if(imDisparity.empty()){
+            cerr<<"Havn't found disparity image at: "
+            <<vstrImageDisparity[ni]<<endl;
+            return 1;
+        }
+//        cout<<"imDisparity type: "<<imDisparity.type()<<endl;
+//        DrawDisparity(imDisparity);
+
+//        assert(imDisparity.type() == CV_32F);
         double tframe = vTimestamps[ni];
 
         if(imLeft.empty())
@@ -77,7 +91,7 @@ int main(int argc, char **argv)
 #endif
 
         // Pass the images to the SLAM system
-        SLAM.TrackStereoSemantic(imLeft,imRight,imSeg,tframe);
+        SLAM.TrackStereoSemantic(imLeft,imRight,imSeg,imDisparity,tframe);
 
 #ifdef COMPILEDWITHC11
         std::chrono::steady_clock::time_point t2 = std::chrono::steady_clock::now();
@@ -120,8 +134,9 @@ int main(int argc, char **argv)
     return 0;
 }
 
-void LoadImages(const string &strPathToSequence, vector<string> &vstrImageLeft,
-                vector<string> &vstrImageRight, vector<string> &vstrImageSeg,vector<double> &vTimestamps)
+void LoadImages(const string &strPathToSequence, vector<string>& vstrImageLeft,
+                vector<string>& vstrImageRight, vector<string>& vstrImageSeg,
+                vector<string>& vstrImageDisparity,vector<double> &vTimestamps)
 {
     ifstream fTimes;
     string strPathTimeFile = strPathToSequence + "/times.txt";
@@ -143,11 +158,13 @@ void LoadImages(const string &strPathToSequence, vector<string> &vstrImageLeft,
     string strPrefixLeft = strPathToSequence + "/image_2/";
     string strPrefixRight = strPathToSequence + "/image_3/";
     string strPrefixseg = strPathToSequence + "/segment_l/";
+    string strDisparity = strPathToSequence + "/disparity_l/";
 
     const int nTimes = vTimestamps.size();
     vstrImageLeft.resize(nTimes);
     vstrImageRight.resize(nTimes);
     vstrImageSeg.resize(nTimes);
+    vstrImageDisparity.resize(nTimes);
     for(int i=0; i<nTimes; i++)
     {
         stringstream ss;
@@ -155,9 +172,35 @@ void LoadImages(const string &strPathToSequence, vector<string> &vstrImageLeft,
         vstrImageLeft[i] = strPrefixLeft + ss.str() + ".png";
         vstrImageRight[i] = strPrefixRight + ss.str() + ".png";
         vstrImageSeg[i] = strPrefixseg + ss.str() + ".png";
+        vstrImageDisparity[i] = strDisparity + ss.str() + ".png";
     }
 }
 
+void DrawDisparity(const cv::Mat& imDis)
+{
+
+    cv::Mat disparityVize = cv::Mat(imDis.size(), CV_8UC1, cv::Scalar(0));
+    float maxVal = 0;
+    for (int i = 0; i < imDis.rows; ++i) {
+        for (int j = 0; j < imDis.cols; ++j) {
+            if (maxVal < imDis.at<uchar>(i, j)) {
+                maxVal = imDis.at<uchar>(i, j);
+            }
+        }
+    }
+    cout<<"max dis: "<<maxVal<<endl;
+    for (int i = 0; i < imDis.rows; ++i) {
+        for (int j = 0; j < imDis.cols; ++j) {
+            float valf = 255.0 * imDis.at<uchar>(i, j) / (float)maxVal;
+
+            disparityVize.at<uchar>(i, j) = uchar(valf);
+        }
+    }
+    cv::Mat debugDis;
+    cv::applyColorMap(disparityVize, debugDis, cv::COLORMAP_JET);
+    cv::imshow("DebugDis",debugDis);
+//    cv::waitKey(0);
+}
 
 
 

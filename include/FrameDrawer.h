@@ -49,7 +49,8 @@ public:
     cv::Mat DrawFrame();
     // Draw disparity
     cv::Mat DrawDisparity();
-
+    cv::Mat DebugDynamic();
+    cv::Mat DebugOpticalFlow();
     cv::Mat DebugDrawMaxGradPoint();
 
     cv::Mat DebugDrawSegMent();
@@ -62,11 +63,12 @@ protected:
     cv::Mat mImDisparity;
     cv::Mat mImDebugMaxGrad;
     cv::Mat mImDebugSegment;
-
+    cv::Mat mImDynamicProposal;
+    cv::Mat mImOpticalFlowDebug;
     float mnMappableRatio;
     int N;
     vector<cv::KeyPoint> mvCurrentKeys;
-    vector<bool> mvbMap, mvbVO;
+    vector<bool> mvbMap, mvbVO,mvbOutlier;
     bool mbOnlyTracking;
     int mnTracked, mnTrackedVO;
     vector<cv::KeyPoint> mvIniKeys;

@@ -25,4 +25,7 @@ cmake-build-debug/
 .idea/
 Examples/Stereo/CameraTrajectory.txt
 *.pcd
+bin/
+CameraTrajectory.txt
+*.bin
 

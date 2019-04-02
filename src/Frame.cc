@@ -22,6 +22,9 @@
 #include "Converter.h"
 #include "ORBmatcher.h"
 #include <thread>
+#include "TicToc.h"
+#include "Thirdparty/libelas/src/elas.h"
+
 
 namespace ORB_SLAM2
 {
@@ -125,12 +128,11 @@ Frame::Frame(const cv::Mat &imLeft, const cv::Mat &imRight, const double &timeSt
     AssignFeaturesToGrid();
 }
 
-Frame::Frame(const cv::Mat &imLeft, const cv::Mat &imRight, const cv::Mat &imSeg, const double &timeStamp,
-             ORBextractor *extractorLeft, ORBextractor *extractorRight, ORBVocabulary *voc, cv::Mat &K,
-             cv::Mat &distCoef, const float &bf, const float &thDepth)
+Frame::Frame(const cv::Mat &imLeft, const cv::Mat &imRight, const cv::Mat &imSeg, const cv::Mat& imDisparity,
+        const vector<cv::Point2f>& vDynamicProposal,const double &timeStamp,ORBextractor *extractorLeft,
+        ORBextractor *extractorRight, ORBVocabulary *voc, cv::Mat &K,cv::Mat &distCoef, const float &bf, const float &thDepth)
         : mpORBvocabulary(voc), mpORBextractorLeft(extractorLeft), mpORBextractorRight(extractorRight),
           mTimeStamp(timeStamp), mK(K.clone()), mDistCoef(distCoef.clone()), mbf(bf), mThDepth(thDepth),
-          mbBuildGradient(false),
           mpReferenceKF(static_cast<KeyFrame *>(NULL))
 {
     // Frame ID
@@ -145,33 +147,43 @@ Frame::Frame(const cv::Mat &imLeft, const cv::Mat &imRight, const cv::Mat &imSeg
     mvLevelSigma2 = mpORBextractorLeft->GetScaleSigmaSquares();
     mvInvLevelSigma2 = mpORBextractorLeft->GetInverseScaleSigmaSquares();
 
+    TicToc t1;
     // ORB extraction
     thread threadLeft(&Frame::ExtractORB, this, 0, imLeft);
     thread threadRight(&Frame::ExtractORB, this, 1, imRight);
     threadLeft.join();
     threadRight.join();
+    cout<<"ExtractOrb cost: "<<t1.Toc()<<" ms"<<endl;
 
     //Creat disparity image.
+    t1.Tic();
     assert(imLeft.type() == CV_8UC1 && imRight.type() == CV_8UC1);
-    mImDisparityLeft = GetDisparity(imLeft, imRight, 0);
+    imDisparity.copyTo(mImDisparityLeft);
+    if(mImDisparityLeft.type() == CV_8U)
+        mImDisparityLeft.convertTo(mImDisparityLeft,CV_32F);
 
-    mImSegment = imSeg.clone();
+    cout<<"Detect distparity cost: "<<t1.Toc()<<" ms"<<endl;
+    imSeg.copyTo(mImSegment);
     //build gradiant
     mnNumberOfMappable = 0; //record high gradient point;
+
+    t1.Tic();
+    mvbValidByGrandient = vector<bool>(imLeft.total(),false);
     BuldGradient(imLeft);
     N = mvKeys.size();
-
+    cout<<"Build Gradient cost: "<<t1.Toc()<<" ms"<<endl;
     if (mvKeys.empty())
         return;
 
+    t1.Tic();
     UndistortKeyPoints();
 
     ComputeStereoMatches();
+    cout<<"ComputeStereoMatches cost: "<<t1.Toc()<<" ms"<<endl;
 
-    mvpMapPoints = vector<MapPoint *>(N, static_cast<MapPoint *>(NULL));//这里先初始化为空的指针，后续如果是keyFrame的话，就会将这个指向具体的MapPoint
+    t1.Tic();
+    mvpMapPoints = vector<MapPoint *>(N, static_cast<MapPoint *>(NULL));
     mvbOutlier = vector<bool>(N, false);
-
-
     // This is done only for the first Frame (or after a change in the calibration)
     if (mbInitialComputations) {
         ComputeImageBounds(imLeft);
@@ -190,8 +202,8 @@ Frame::Frame(const cv::Mat &imLeft, const cv::Mat &imRight, const cv::Mat &imSeg
     }
 
     mb = mbf / fx;
-
     AssignFeaturesToGrid();
+    cout<<"AssignFeaturesToGrid cost: "<<t1.Toc()<<" ms"<<endl;
 
 }
 
@@ -785,6 +797,7 @@ void Frame::BuldGradient(const cv::Mat &img)
     //smear left/right
     int totalPixel = 0;
     for (int v = 2; v < oGrayImg.rows - 2; v++) {
+        int shitRow = v * oGrayImg.cols;
         float *maxGradPT = maxGrad + v * oGrayImg.cols;
         for (int u = 2; u < oGrayImg.cols - 2; u++) {
             float g1 = maxGradPT[-1];
@@ -796,11 +809,11 @@ void Frame::BuldGradient(const cv::Mat &img)
             totalPixel++;
             if (*maxGradPT > minUsedGrad) {
                 mnNumberOfMappable++;
+                mvbValidByGrandient[shitRow + u] = true;
             }
         }
     }
     mnMappableRatio = mnNumberOfMappable / float(totalPixel);
-    mbBuildGradient = true;
 //    printf("Frame %d mappableRatio: %lf \n ",mnId,mnMappableRatio);
     return;
 }
@@ -835,54 +848,6 @@ cv::Mat Frame::GetDisparity(const cv::Mat &imRectLeft, const cv::Mat &imRectRigh
 
     return disparityLeft;
 
-}
-
-void Frame::MakePointCloud()
-{
-    if (!mbBuildGradient) {
-        std::cerr << "make point cloud need gradient built" << std::endl;
-        return;
-    }
-    cv::Mat Twc = mTcw.inv();
-    cv::Mat rwc = Twc.rowRange(0, 3).colRange(0, 3);
-    cv::Mat mImDisparityOrigin = mImDisparityLeft.clone();
-    cv::Mat maxGrandient = mGrandientMax.clone();
-    cv::Mat mImSegmentOrign = mImSegment;
-    //calculate semidense 3d point
-    int total = mImDisparityOrigin.rows * mImDisparityOrigin.cols;
-    mPointCloud.resize(total);
-    int cloudPointNum = 0;
-    for (int v = mImDisparityOrigin.rows * 0.33; v < mImDisparityOrigin.rows ; v++) {
-        int rowShift = v * mImDisparityOrigin.cols;
-        for (int u = 0; u < mImDisparityOrigin.cols; u++) {
-            int index = rowShift + u;
-            float disp = mImDisparityOrigin.at<float>(v, u);
-            float grad = maxGrandient.at<float>(v, u);
-            float zc = mbf / disp;
-            if (grad > minUsedGrad && zc > 0) {
-                float xc = (u - cx) * zc * invfx;
-                float yc = (v - cy) * zc * invfy;
-                int flag = int(mImSegmentOrign.at<uchar>(v, u));
-                if (flag == ROAD || flag == SIDEWAILK ||
-                    flag == POLE) {
-                    cv::Mat x3Dc = (cv::Mat_<float>(3, 1) << xc, yc, zc);
-//                    cv::Mat x3dw = rwc * x3Dc + mOw;
-//                    SemanticMapPoint sPoint = new SemanticMapPoint(x3dw.at<float>(0, 0),x3dw.at<float>(1, 0),x3dw.at<float>(2, 0),flag);
-                    LabelPoint sPoint;
-                    sPoint.label = flag;
-                    sPoint.u = u;
-                    sPoint.v = v;
-                    sPoint.pt3d = x3Dc;
-                    sPoint.id = index;
-                    mPointCloud[index]  = sPoint;
-                    cloudPointNum++;
-//                    mPointsLabel.push_back(sPoint);
-                }
-            }
-        }
-    }
-    cout << "Frame " << mnId << " number of mapperble: " << mnNumberOfMappable << " number of 3d cloud : "
-         << cloudPointNum << endl;
 }
 
 } //namespace ORB_SLAM

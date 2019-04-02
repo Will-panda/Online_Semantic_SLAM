@@ -62,10 +62,12 @@ public:
 
     // Preprocess the input and call Track(). Extract features and performs stereo matching.
     cv::Mat GrabImageStereo(const cv::Mat &imRectLeft,const cv::Mat &imRectRight, const double &timestamp);
-    cv::Mat GrabImageStereoSemantic(const cv::Mat &imRectLeft, const cv::Mat &imRectRight,const cv::Mat &imSeg, const double &timestamp);
+    cv::Mat GrabImageStereoSemantic(const cv::Mat &imRectLeft, const cv::Mat &imRectRight,const cv::Mat &imSeg,const cv::Mat &imDisparity, const double &timestamp);
     cv::Mat GrabImageRGBD(const cv::Mat &imRGB,const cv::Mat &imD, const double &timestamp);
     cv::Mat GrabImageMonocular(const cv::Mat &im, const double &timestamp);
 
+    void CalDynamicProposal(const cv::Mat &mImCurrentGray, const cv::Mat &mImLastGray, std::vector<cv::Point2f> &vDynamicProposal);
+    void CheckProposal(std::vector<cv::Point2f> &vDynamicProposal);
     void SetLocalMapper(LocalMapping* pLocalMapper);
     void SetLoopClosing(LoopClosing* pLoopClosing);
     void SetViewer(Viewer* pViewer);
@@ -78,7 +80,7 @@ public:
 
     // Use this function if you have deactivated local mapping and you only want to localize the camera.
     void InformOnlyTracking(const bool &flag);
-
+    cv::Mat DbugDrawDynamicProposal(const vector<cv::Point2f>& vDynamicProposal);
     inline float GetDepthThreshold(){return mThDepth;}
 public:
 
@@ -100,9 +102,10 @@ public:
     // Current Frame
     Frame mCurrentFrame;
     cv::Mat mImGray;
-    cv::Mat mImSegment;
-    cv::Mat mCurrentMaxGradient;
-
+    cv::Mat mImCurrentSegment;
+    cv::Mat mImLastGray;
+    cv::Mat mImDebugDynamicProposal;
+    cv::Mat mImDebugOptiFlow;
     // Initialization Variables (Monocular)
     std::vector<int> mvIniLastMatches;
     std::vector<int> mvIniMatches;
@@ -119,6 +122,8 @@ public:
 
     // True if local mapping is deactivated and we are performing only localization
     bool mbOnlyTracking;
+    cv::Mat mK;
+    float mbf;
 
     void Reset();
 
@@ -190,9 +195,7 @@ protected:
     Map* mpMap;
 
     //Calibration matrix
-    cv::Mat mK;
     cv::Mat mDistCoef;
-    float mbf;
 
     //New KeyFrame rules (according to fps)
     int mMinFrames;

@@ -26,9 +26,9 @@
 namespace ORB_SLAM2
 {
 
-Viewer::Viewer(System* pSystem, FrameDrawer *pFrameDrawer, MapDrawer *pMapDrawer, Tracking *pTracking, const string &strSettingPath):
-    mpSystem(pSystem), mpFrameDrawer(pFrameDrawer),mpMapDrawer(pMapDrawer), mpTracker(pTracking),
-    mbFinishRequested(false), mbFinished(true), mbStopped(true), mbStopRequested(false)
+Viewer::Viewer(System* pSystem, FrameDrawer *pFrameDrawer, MapDrawer *pMapDrawer, Tracking *pTracking,SemanticMapper* pSmapper,
+        const string &strSettingPath):mpSystem(pSystem), mpFrameDrawer(pFrameDrawer),mpMapDrawer(pMapDrawer), mpTracker(pTracking),
+    mbFinishRequested(false), mbFinished(true), mbStopped(true), mbStopRequested(false),mpSmapper(pSmapper)
 {
     cv::FileStorage fSettings(strSettingPath, cv::FileStorage::READ);
 
@@ -69,12 +69,15 @@ void Viewer::Run()
 
     pangolin::CreatePanel("menu").SetBounds(0.0,1.0,0.0,pangolin::Attach::Pix(175));
     pangolin::Var<bool> menuFollowCamera("menu.Follow Camera",true,true);
-    pangolin::Var<bool> menuShowPoints("menu.Show Points",true,true);
+    pangolin::Var<bool> menuShowPoints("menu.Show Points",false,true);
     pangolin::Var<bool> menuShowKeyFrames("menu.Show KeyFrames",true,true);
     pangolin::Var<bool> menuShowGraph("menu.Show Graph",true,true);
     pangolin::Var<bool> menuLocalizationMode("menu.Localization Mode",false,true);
     pangolin::Var<bool> menuReset("menu.Reset",false,false);
     pangolin::Var<bool> menuPause("menu.Pause",false,true);
+    pangolin::Var<bool> menuSemantic("menu.Semantic",false,true);
+    pangolin::Var<bool> menuShowFlowOutlier("menu.Show Flow Outlier",false,true);
+    pangolin::Var<bool> menuShowFlow("menu.Show Flow ",false,true);
 
     // Define Camera Render Object (for view / scene browsing)
     pangolin::OpenGlRenderState s_cam(
@@ -90,10 +93,10 @@ void Viewer::Run()
     pangolin::OpenGlMatrix Twc;
     Twc.SetIdentity();
 
-    cv::namedWindow("ORB-SLAM2: Current Frame");
+//    cv::namedWindow("ORB-SLAM2: Current Frame");
 //    cv::namedWindow("ORB-SLAM2: Distparity");
 
-    cv::namedWindow("ORB-SLAM2: SegmentVize");
+//    cv::namedWindow("ORB-SLAM2: SegmentVize");
 //    cv::namedWindow("ORB-SLAM2: debugMaxGrad");
     bool bFollow = true;
     bool bLocalizationMode = false;
@@ -137,6 +140,7 @@ void Viewer::Run()
         }
         d_cam.Activate(s_cam);
         glClearColor(1.0f,1.0f,1.0f,1.0f);
+
         mpMapDrawer->DrawCurrentCamera(Twc);
 
         if(menuShowKeyFrames || menuShowGraph) {
@@ -145,21 +149,34 @@ void Viewer::Run()
         if(menuShowPoints)
             mpMapDrawer->DrawMapPoints();
 
+        if (menuShowFlowOutlier)
+        {
+            cv::namedWindow("OS-SLAM:menuShowFlowOutlier", 0);
+            cv::Mat imgDynamicDebug = mpFrameDrawer->DebugDynamic();
+            cv::imshow("OS-SLAM:menuShowFlowOutlier", imgDynamicDebug);
+        }
+        if (menuShowFlow)
+        {
+            cv::namedWindow("OS-SLAM:Show Flow", 0);
+            cv::Mat imgOpticalDebug = mpFrameDrawer->DebugOpticalFlow();
+            cv::imshow("OS-SLAM:menu ShowFlow", imgOpticalDebug);
+        }
+        if (menuSemantic)
+            mpSmapper->DrawAllSemanticPoint();
 
-        mpMapDrawer->DrawSemiDenseMapPoints();
         pangolin::FinishFrame();
 
 
-        cv::Mat im = mpFrameDrawer->DrawFrame();
-        cv::Mat distparity  = mpFrameDrawer->DrawDisparity();
+//        cv::Mat im = mpFrameDrawer->DrawFrame();
+//        cv::Mat distparity  = mpFrameDrawer->DrawDisparity();
 //        cv::Mat SegmentVize = mpFrameDrawer->DebugDrawSegMent();
 //        cv::Mat debugMaxGrad = mpFrameDrawer->DebugDrawMaxGradPoint();
 
 
-        cv::imshow("ORB-SLAM2: Current Frame",im);
-        cv::imshow("ORB-SLAM2: Distparity",distparity);
-        string dispatity_result = "/data/dataset/kitti/kitti_color/result/" + to_string(mpTracker->mCurrentFrame.mnId);
-        cv::imwrite(dispatity_result + ".png",distparity);
+//        cv::imshow("ORB-SLAM2: Current Frame",im);
+//        cv::imshow("ORB-SLAM2: Distparity",distparity);
+//        string dispatity_result = "/data/dataset/kitti/kitti_color/result/" + to_string(mpTracker->mCurrentFrame.mnId);
+//        cv::imwrite(dispatity_result + ".png",distparity);
         cv::waitKey(mT);
 
 //        cv::imshow("ORB-SLAM2: SegmentVize",SegmentVize);

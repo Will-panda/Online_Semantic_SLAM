@@ -27,7 +27,6 @@
 #include "Tracking.h"
 #include "System.h"
 #include <mutex>
-
 namespace ORB_SLAM2
 {
 
@@ -35,11 +34,12 @@ class Tracking;
 class FrameDrawer;
 class MapDrawer;
 class System;
+class SemanticMapper;
 
 class Viewer
 {
 public:
-    Viewer(System* pSystem, FrameDrawer* pFrameDrawer, MapDrawer* pMapDrawer, Tracking *pTracking, const string &strSettingPath);
+    Viewer(System* pSystem, FrameDrawer* pFrameDrawer, MapDrawer* pMapDrawer, Tracking *pTracking, SemanticMapper* pSmapper,const string &strSettingPath);
 
     // Main thread function. Draw points, keyframes, the current camera pose and the last processed
     // frame. Drawing is refreshed according to the camera fps. We use Pangolin.
@@ -63,7 +63,7 @@ private:
     FrameDrawer* mpFrameDrawer;
     MapDrawer* mpMapDrawer;
     Tracking* mpTracker;
-
+    SemanticMapper* mpSmapper;
     // 1/fps in ms
     double mT;
     float mImageWidth, mImageHeight;

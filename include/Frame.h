@@ -26,18 +26,16 @@
 #include "MapPoint.h"
 #include "Thirdparty/DBoW2/DBoW2/BowVector.h"
 #include "Thirdparty/DBoW2/DBoW2/FeatureVector.h"
-#include "Thirdparty/libelas/src/elas.h"
 #include "ORBVocabulary.h"
 #include "KeyFrame.h"
 #include "ORBextractor.h"
-
 #include <opencv2/opencv.hpp>
 
 namespace ORB_SLAM2
 {
 #define FRAME_GRID_ROWS 48
 #define FRAME_GRID_COLS 64
-const int minUsedGrad = 12.0;
+const int minUsedGrad = 6.0;
 
 class MapPoint;
 class KeyFrame;
@@ -64,7 +62,7 @@ public:
     Frame(const cv::Mat &imLeft, const cv::Mat &imRight, const double &timeStamp, ORBextractor* extractorLeft, ORBextractor* extractorRight, ORBVocabulary* voc, cv::Mat &K, cv::Mat &distCoef, const float &bf, const float &thDepth);
 
     // Constructor for semantic stereo .
-    Frame(const cv::Mat &imLeft, const cv::Mat &imRight,const cv::Mat &imSeg, const double &timeStamp, ORBextractor* extractorLeft, ORBextractor* extractorRight, ORBVocabulary* voc, cv::Mat &K, cv::Mat &distCoef, const float &bf, const float &thDepth);
+    Frame(const cv::Mat &imLeft, const cv::Mat &imRight,const cv::Mat &imSeg,const cv::Mat& imDisparity, const vector<cv::Point2f>& vDynamicProposal,const double &timeStamp, ORBextractor* extractorLeft, ORBextractor* extractorRight, ORBVocabulary* voc, cv::Mat &K, cv::Mat &distCoef, const float &bf, const float &thDepth);
 
     // Constructor for RGB-D cameras.
     Frame(const cv::Mat &imGray, const cv::Mat &imDepth, const double &timeStamp, ORBextractor* extractor,ORBVocabulary* voc, cv::Mat &K, cv::Mat &distCoef, const float &bf, const float &thDepth);
@@ -117,7 +115,6 @@ public:
     // Backprojects a keypoint (if stereo/depth info available) into 3D world coordinates.
     cv::Mat UnprojectStereo(const int &i);
 
-    void MakePointCloud();
 public:
     // Vocabulary used for relocalization.
     ORBVocabulary* mpORBvocabulary;
@@ -173,6 +170,7 @@ public:
 //    cv::Mat mGradientX;
 //    cv::Mat mGradientY;
     cv::Mat mGrandientMax;
+    std::vector<bool> mvbValidByGrandient;
     int mnNumberOfMappable;
     float mnMappableRatio;
     //disparity map
@@ -217,8 +215,6 @@ public:
 
     static bool mbInitialComputations;
 
-//    std::vector<uchar> mPointsLabel;
-//    std::vector<float> mPointsDepth;
     std::vector<LabelPoint> mPointCloud;
 
 private:
@@ -245,7 +241,6 @@ private:
     cv::Mat mtcw;
     cv::Mat mRwc;
     cv::Mat mOw; //==mtwc
-    bool mbBuildGradient;
 };
 
 }// namespace ORB_SLAM
