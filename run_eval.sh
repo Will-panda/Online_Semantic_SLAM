@@ -1,0 +1,1 @@
+./bin/eval /mnt/d/kitti/kitti_color/${1}/pose.txt CameraTrajectory.txt

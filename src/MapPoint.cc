@@ -272,7 +272,7 @@ void MapPoint::ComputeDistinctiveDescriptors()
     // Compute distances between them
     const size_t N = vDescriptors.size();
 
-    float Distances[N][N];  //是不是有点浪费
+    float Distances[N][N];
     for(size_t i=0;i<N;i++)
     {
         Distances[i][i]=0;

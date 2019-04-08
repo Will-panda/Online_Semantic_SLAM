@@ -65,12 +65,12 @@ int main(int argc, char **argv)
         imLeft = cv::imread(vstrImageLeft[ni],CV_LOAD_IMAGE_UNCHANGED);
         imRight = cv::imread(vstrImageRight[ni],CV_LOAD_IMAGE_UNCHANGED);
         imSeg = cv::imread(vstrImageSeg[ni],CV_LOAD_IMAGE_UNCHANGED);
-        imDisparity = cv::imread(vstrImageDisparity[ni],CV_LOAD_IMAGE_UNCHANGED);
-        if(imDisparity.empty()){
-            cerr<<"Havn't found disparity image at: "
-            <<vstrImageDisparity[ni]<<endl;
-            return 1;
-        }
+//        imDisparity = cv::imread(vstrImageDisparity[ni],CV_LOAD_IMAGE_UNCHANGED);
+//        if(imDisparity.empty()){
+//            cerr<<"Havn't found disparity image at: "
+//            <<vstrImageDisparity[ni]<<endl;
+//            return 1;
+//        }
 //        cout<<"imDisparity type: "<<imDisparity.type()<<endl;
 //        DrawDisparity(imDisparity);
 
@@ -91,7 +91,7 @@ int main(int argc, char **argv)
 #endif
 
         // Pass the images to the SLAM system
-        SLAM.TrackStereoSemantic(imLeft,imRight,imSeg,imDisparity,tframe);
+        SLAM.TrackStereoSemantic(imLeft,imRight,imSeg,tframe);
 
 #ifdef COMPILEDWITHC11
         std::chrono::steady_clock::time_point t2 = std::chrono::steady_clock::now();
@@ -158,7 +158,7 @@ void LoadImages(const string &strPathToSequence, vector<string>& vstrImageLeft,
     string strPrefixLeft = strPathToSequence + "/image_2/";
     string strPrefixRight = strPathToSequence + "/image_3/";
     string strPrefixseg = strPathToSequence + "/segment_l/";
-    string strDisparity = strPathToSequence + "/disparity_l/";
+//    string strDisparity = strPathToSequence + "/disparity_l/";
 
     const int nTimes = vTimestamps.size();
     vstrImageLeft.resize(nTimes);
@@ -172,7 +172,7 @@ void LoadImages(const string &strPathToSequence, vector<string>& vstrImageLeft,
         vstrImageLeft[i] = strPrefixLeft + ss.str() + ".png";
         vstrImageRight[i] = strPrefixRight + ss.str() + ".png";
         vstrImageSeg[i] = strPrefixseg + ss.str() + ".png";
-        vstrImageDisparity[i] = strDisparity + ss.str() + ".png";
+//        vstrImageDisparity[i] = strDisparity + ss.str() + ".png";
     }
 }
 
@@ -199,7 +199,7 @@ void DrawDisparity(const cv::Mat& imDis)
     cv::Mat debugDis;
     cv::applyColorMap(disparityVize, debugDis, cv::COLORMAP_JET);
     cv::imshow("DebugDis",debugDis);
-//    cv::waitKey(0);
+    cv::waitKey(0);
 }
 
 

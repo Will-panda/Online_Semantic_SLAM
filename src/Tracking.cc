@@ -36,119 +36,12 @@
 #include<iostream>
 
 #include<mutex>
-
+#include "Thirdparty/libelas/src/elas.h"
 
 using namespace std;
 
 namespace ORB_SLAM2
 {
-
-Tracking::Tracking(System *pSys, ORBVocabulary *pVoc, FrameDrawer *pFrameDrawer, MapDrawer *pMapDrawer, Map *pMap,
-                   KeyFrameDatabase *pKFDB, const string &strSettingPath, const int sensor) :
-        mState(NO_IMAGES_YET), mSensor(sensor), mbOnlyTracking(false), mbVO(false), mpORBVocabulary(pVoc),
-        mbPause(false),
-        mpKeyFrameDB(pKFDB), mpInitializer(static_cast<Initializer *>(NULL)), mpSystem(pSys), mpViewer(NULL),
-        mpFrameDrawer(pFrameDrawer), mpMapDrawer(pMapDrawer), mpMap(pMap), mnLastRelocFrameId(0)
-{
-    // Load camera parameters from settings file
-
-    cv::FileStorage fSettings(strSettingPath, cv::FileStorage::READ);
-    float fx = fSettings["Camera.fx"];
-    float fy = fSettings["Camera.fy"];
-    float cx = fSettings["Camera.cx"];
-    float cy = fSettings["Camera.cy"];
-
-    cv::Mat K = cv::Mat::eye(3, 3, CV_32F);
-    K.at<float>(0, 0) = fx;
-    K.at<float>(1, 1) = fy;
-    K.at<float>(0, 2) = cx;
-    K.at<float>(1, 2) = cy;
-    K.copyTo(mK);
-
-    cv::Mat DistCoef(4, 1, CV_32F);
-    DistCoef.at<float>(0) = fSettings["Camera.k1"];
-    DistCoef.at<float>(1) = fSettings["Camera.k2"];
-    DistCoef.at<float>(2) = fSettings["Camera.p1"];
-    DistCoef.at<float>(3) = fSettings["Camera.p2"];
-    const float k3 = fSettings["Camera.k3"];
-    if (k3 != 0)
-    {
-        DistCoef.resize(5);
-        DistCoef.at<float>(4) = k3;
-    }
-    DistCoef.copyTo(mDistCoef);
-
-    mbf = fSettings["Camera.bf"];
-
-    float fps = fSettings["Camera.fps"];
-    if (fps == 0)
-        fps = 30;
-
-    // Max/Min Frames to insert keyframes and to check relocalisation
-    mMinFrames = 0;
-    mMaxFrames = fps;
-
-    cout << endl << "Camera Parameters: " << endl;
-    cout << "- fx: " << fx << endl;
-    cout << "- fy: " << fy << endl;
-    cout << "- cx: " << cx << endl;
-    cout << "- cy: " << cy << endl;
-    cout << "- k1: " << DistCoef.at<float>(0) << endl;
-    cout << "- k2: " << DistCoef.at<float>(1) << endl;
-    if (DistCoef.rows == 5)
-        cout << "- k3: " << DistCoef.at<float>(4) << endl;
-    cout << "- p1: " << DistCoef.at<float>(2) << endl;
-    cout << "- p2: " << DistCoef.at<float>(3) << endl;
-    cout << "- fps: " << fps << endl;
-
-
-    int nRGB = fSettings["Camera.RGB"];
-    mbRGB = nRGB;
-
-    if (mbRGB)
-        cout << "- color order: RGB (ignored if grayscale)" << endl;
-    else
-        cout << "- color order: BGR (ignored if grayscale)" << endl;
-
-    // Load ORB parameters
-
-    int nFeatures = fSettings["ORBextractor.nFeatures"];
-    float fScaleFactor = fSettings["ORBextractor.scaleFactor"];
-    int nLevels = fSettings["ORBextractor.nLevels"];
-    int fIniThFAST = fSettings["ORBextractor.iniThFAST"];
-    int fMinThFAST = fSettings["ORBextractor.minThFAST"];
-
-    mpORBextractorLeft = new ORBextractor(nFeatures, fScaleFactor, nLevels, fIniThFAST, fMinThFAST);
-
-    if (sensor == System::STEREO)
-        mpORBextractorRight = new ORBextractor(nFeatures, fScaleFactor, nLevels, fIniThFAST, fMinThFAST);
-
-    if (sensor == System::MONOCULAR)
-        mpIniORBextractor = new ORBextractor(2 * nFeatures, fScaleFactor, nLevels, fIniThFAST, fMinThFAST);
-
-    cout << endl << "ORB Extractor Parameters: " << endl;
-    cout << "- Number of Features: " << nFeatures << endl;
-    cout << "- Scale Levels: " << nLevels << endl;
-    cout << "- Scale Factor: " << fScaleFactor << endl;
-    cout << "- Initial Fast Threshold: " << fIniThFAST << endl;
-    cout << "- Minimum Fast Threshold: " << fMinThFAST << endl;
-
-    if (sensor == System::STEREO || sensor == System::RGBD)
-    {
-        mThDepth = mbf * (float) fSettings["ThDepth"] / fx;
-        cout << endl << "Depth Threshold (Close/Far Points): " << mThDepth << endl;
-    }
-
-    if (sensor == System::RGBD)
-    {
-        mDepthMapFactor = fSettings["DepthMapFactor"];
-        if (fabs(mDepthMapFactor) < 1e-5)
-            mDepthMapFactor = 1;
-        else
-            mDepthMapFactor = 1.0f / mDepthMapFactor;
-    }
-
-}
 
 Tracking::Tracking(System *pSys, ORBVocabulary *pVoc, FrameDrawer *pFrameDrawer, MapDrawer *pMapDrawer, Map *pMap,
                    KeyFrameDatabase *pKFDB, const string &strSettingPath, const int sensor, const bool bUseGT) :
@@ -272,47 +165,7 @@ void Tracking::SetViewer(Viewer *pViewer)
     mpViewer = pViewer;
 }
 
-void Tracking::SetPause()
-{
-    mbPause = true;
-}
-
-cv::Mat Tracking::GrabImageStereo(const cv::Mat &imRectLeft, const cv::Mat &imRectRight, const double &timestamp)
-{
-    mImGray = imRectLeft;
-    cv::Mat imGrayRight = imRectRight;
-    if (mImGray.channels() == 3)
-    {
-        if (mbRGB)
-        {
-            cvtColor(mImGray, mImGray, CV_RGB2GRAY);
-            cvtColor(imGrayRight, imGrayRight, CV_RGB2GRAY);
-        } else
-        {
-            cvtColor(mImGray, mImGray, CV_BGR2GRAY);
-            cvtColor(imGrayRight, imGrayRight, CV_BGR2GRAY);
-        }
-    } else if (mImGray.channels() == 4)
-    {
-        if (mbRGB)
-        {
-            cvtColor(mImGray, mImGray, CV_RGBA2GRAY);
-            cvtColor(imGrayRight, imGrayRight, CV_RGBA2GRAY);
-        } else
-        {
-            cvtColor(mImGray, mImGray, CV_BGRA2GRAY);
-            cvtColor(imGrayRight, imGrayRight, CV_BGRA2GRAY);
-        }
-    }
-    mCurrentFrame = Frame(mImGray, imGrayRight, timestamp, mpORBextractorLeft, mpORBextractorRight, mpORBVocabulary, mK,
-                          mDistCoef, mbf, mThDepth);
-    Track();
-
-    return mCurrentFrame.mTcw.clone();
-}
-
-cv::Mat Tracking::GrabImageStereoSemantic(const cv::Mat &imRectLeft, const cv::Mat &imRectRight, const cv::Mat &imSeg,
-                                          const cv::Mat &imDisparity,const double &timestamp)
+cv::Mat Tracking::GrabImageStereoSemantic(const cv::Mat &imRectLeft, const cv::Mat &imRectRight, const cv::Mat &imSeg,const double &timestamp)
 {
 
     mImGray = imRectLeft;
@@ -352,15 +205,18 @@ cv::Mat Tracking::GrabImageStereoSemantic(const cv::Mat &imRectLeft, const cv::M
         // using semantic check proposal and get
         CheckProposal(vDynamicProposal);
         std::chrono::steady_clock::time_point t2 = std::chrono::steady_clock::now();
-        double dynamicCheckTime = std::chrono::duration_cast<std::chrono::duration<double> >(t2 -t1).count();
-        cout<<"Check dynamic cost time: "<< dynamicCheckTime*1000<<" ms."<< endl;
+        double dynamicCheckTime = std::chrono::duration_cast<std::chrono::duration<double> >(t2 - t1).count();
+        cout << "Check dynamic cost time: " << dynamicCheckTime * 1000 << " ms." << endl;
     }
-    if(!vDynamicProposal.empty())
+    if (!vDynamicProposal.empty())
         mImDebugDynamicProposal = DbugDrawDynamicProposal(vDynamicProposal);
     mImLastGray = mImGray;
+
     TicToc timeCheck;
-    mCurrentFrame = Frame(mImGray, imGrayRight, mImCurrentSegment,imDisparity,vDynamicProposal, timestamp, mpORBextractorLeft, mpORBextractorRight,mpORBVocabulary, mK, mDistCoef, mbf, mThDepth);
-    cout<<"Creat Frame " << mCurrentFrame.mnId<<" cost "<<timeCheck.Toc() <<" ms."<<endl;
+    mCurrentFrame = Frame(mImGray, imGrayRight, mImCurrentSegment, vDynamicProposal, timestamp,
+                          mpORBextractorLeft, mpORBextractorRight, mpORBVocabulary, mK, mDistCoef, mbf, mThDepth);
+    cout << "Creat Frame " << mCurrentFrame.mnId << " cost " << timeCheck.Toc() << " ms." << endl;
+
     if (mbUseGT)
         mCurrentFrame.SetPose(mpSystem->GetTruthTracjectory()[mCurrentFrame.mnId].inv());
     else
@@ -441,7 +297,7 @@ void Tracking::CalDynamicProposal(const cv::Mat &currentGray, const cv::Mat &las
 
     //vize result of optical flow
     currentGray.copyTo(mImDebugOptiFlow);
-    cv::cvtColor(mImDebugOptiFlow,mImDebugOptiFlow,CV_GRAY2BGR);
+    cv::cvtColor(mImDebugOptiFlow, mImDebugOptiFlow, CV_GRAY2BGR);
     // get dynamic proposal with F matrix
     for (int i = 0; i < vLastPoint.size(); i++)
     {
@@ -455,8 +311,8 @@ void Tracking::CalDynamicProposal(const cv::Mat &currentGray, const cv::Mat &las
             {
                 vDynamicProposal.push_back(vCurrentPoint[i]);
             }
-            cv::circle(mImDebugOptiFlow,vCurrentPoint[i],2,cv::Scalar(0,250,0),-1);
-            cv::line(mImDebugOptiFlow,vCurrentPoint[i],vLastPoint[i],cv::Scalar(0,250,0));
+            cv::circle(mImDebugOptiFlow, vCurrentPoint[i], 2, cv::Scalar(0, 250, 0), -1);
+            cv::line(mImDebugOptiFlow, vCurrentPoint[i], vLastPoint[i], cv::Scalar(0, 250, 0));
         }
     }
 
@@ -473,95 +329,41 @@ void Tracking::CheckProposal(std::vector<cv::Point2f> &vDynamicProposal)
     {
         int x = int(dPoint.x);
         int y = int(dPoint.y);
-        if(x > mImCurrentSegment.cols -1 || y > mImCurrentSegment.rows -1||
-           x < 0 || y < 0)
+        if (x > mImCurrentSegment.cols - 1 || y > mImCurrentSegment.rows - 1 ||
+            x < 0 || y < 0)
             continue;
-        int flag = mImCurrentSegment.at<uchar>(y,x);
-        if( flag == CAR || flag == PERSION ){
-            cout<<"foud dynamic object ,now make whole segment undetectale"<<endl;
+        int flag = mImCurrentSegment.at<uchar>(y, x);
+        if (flag == CAR || flag == PERSION)
+        {
+            cout << "foud dynamic object ,now make whole segment undetectale" << endl;
             return;
         }
     }
 }
-cv::Mat Tracking::DbugDrawDynamicProposal(const vector<cv::Point2f>& vDynamicProposal)
+
+cv::Mat Tracking::DbugDrawDynamicProposal(const vector<cv::Point2f> &vDynamicProposal)
 {
     cv::Mat img;
     mImGray.copyTo(img);
-    if(img.channels()<3)
-        cv::cvtColor(img,img,CV_GRAY2BGR);
-    for(const auto& dPoint: vDynamicProposal)
+    if (img.channels() < 3)
+        cv::cvtColor(img, img, CV_GRAY2BGR);
+    for (const auto &dPoint: vDynamicProposal)
     {
         int x = int(dPoint.x);
         int y = int(dPoint.y);
-        if(x > mImCurrentSegment.cols -1 || y > mImCurrentSegment.rows -1||
-           x < 0 || y < 0)
+        if (x > mImCurrentSegment.cols - 1 || y > mImCurrentSegment.rows - 1 ||
+            x < 0 || y < 0)
             continue;
-        int flag = mImCurrentSegment.at<uchar>(y,x);
-        if(flag == CAR || flag == PERSION)
-            cv::circle(img,cv::Point(x,y),2,cv::Scalar(0,0,255),-1);
+        int flag = mImCurrentSegment.at<uchar>(y, x);
+        if (flag == CAR || flag == PERSION)
+            cv::circle(img, cv::Point(x, y), 2, cv::Scalar(0, 0, 255), -1);
         else
-            cv::circle(img,cv::Point(x,y),2,cv::Scalar(0,255,255),-1);
+            cv::circle(img, cv::Point(x, y), 2, cv::Scalar(0, 255, 255), -1);
     }
     return img;
 }
-cv::Mat Tracking::GrabImageRGBD(const cv::Mat &imRGB, const cv::Mat &imD, const double &timestamp)
-{
-    mImGray = imRGB;
-    cv::Mat imDepth = imD;
-
-    if (mImGray.channels() == 3)
-    {
-        if (mbRGB)
-            cvtColor(mImGray, mImGray, CV_RGB2GRAY);
-        else
-            cvtColor(mImGray, mImGray, CV_BGR2GRAY);
-    } else if (mImGray.channels() == 4)
-    {
-        if (mbRGB)
-            cvtColor(mImGray, mImGray, CV_RGBA2GRAY);
-        else
-            cvtColor(mImGray, mImGray, CV_BGRA2GRAY);
-    }
-
-    if ((fabs(mDepthMapFactor - 1.0f) > 1e-5) || imDepth.type() != CV_32F)
-        imDepth.convertTo(imDepth, CV_32F, mDepthMapFactor);
-
-    mCurrentFrame = Frame(mImGray, imDepth, timestamp, mpORBextractorLeft, mpORBVocabulary, mK, mDistCoef, mbf,
-                          mThDepth);
-
-    Track();
-
-    return mCurrentFrame.mTcw.clone();
-}
 
 
-cv::Mat Tracking::GrabImageMonocular(const cv::Mat &im, const double &timestamp)
-{
-    mImGray = im;
-
-    if (mImGray.channels() == 3)
-    {
-        if (mbRGB)
-            cvtColor(mImGray, mImGray, CV_RGB2GRAY);
-        else
-            cvtColor(mImGray, mImGray, CV_BGR2GRAY);
-    } else if (mImGray.channels() == 4)
-    {
-        if (mbRGB)
-            cvtColor(mImGray, mImGray, CV_RGBA2GRAY);
-        else
-            cvtColor(mImGray, mImGray, CV_BGRA2GRAY);
-    }
-
-    if (mState == NOT_INITIALIZED || mState == NO_IMAGES_YET)
-        mCurrentFrame = Frame(mImGray, timestamp, mpIniORBextractor, mpORBVocabulary, mK, mDistCoef, mbf, mThDepth);
-    else
-        mCurrentFrame = Frame(mImGray, timestamp, mpORBextractorLeft, mpORBVocabulary, mK, mDistCoef, mbf, mThDepth);
-
-    Track();
-
-    return mCurrentFrame.mTcw.clone();
-}
 
 void Tracking::StereoInitialization()
 {
@@ -582,11 +384,11 @@ void Tracking::StereoInitialization()
             float z = mCurrentFrame.mvDepth[i];
             if (z > 0)
             {
-                cv::Mat x3D = mCurrentFrame.UnprojectStereo(i);//世界坐标x,y,z
+                cv::Mat x3D = mCurrentFrame.UnprojectStereo(i);//x,y,z
                 MapPoint *pNewMP = new MapPoint(x3D, pKFini, mpMap);
                 pNewMP->AddObservation(pKFini, i);
                 pKFini->AddMapPoint(pNewMP, i);
-                pNewMP->ComputeDistinctiveDescriptors(); //地图点有多次观测，观测的描述可能不太一样，所以要从多次观测里面挑一个比较好的和描述子，这里的算法其实不科学
+                pNewMP->ComputeDistinctiveDescriptors();
                 pNewMP->UpdateNormalAndDepth();
                 mpMap->AddMapPoint(pNewMP);
 
@@ -637,7 +439,7 @@ void Tracking::Track()
         else
             MonocularInitialization();
 
-        mpFrameDrawer->Update(this);
+//        mpFrameDrawer->Update(this);
 
         if (mState != OK)
             return;
@@ -738,7 +540,7 @@ void Tracking::Track()
             }
         }
 
-        mCurrentFrame.mpReferenceKF = mpReferenceKF; //这句是不是可以放到TrackReferenceKeyFrame()里面呢？
+        mCurrentFrame.mpReferenceKF = mpReferenceKF;
 
         // If we have an initial estimation of the camera pose and matching. Track the local map.
         if (!mbOnlyTracking)
@@ -751,7 +553,7 @@ void Tracking::Track()
             // a local map and therefore we do not perform TrackLocalMap(). Once the system relocalizes
             // the camera we will use the local map again.
             if (bOK && !mbVO)
-                bOK = TrackLocalMap();  //更新参考关键帧,更新局部地图，
+                bOK = TrackLocalMap();
         }
 
         if (bOK)
@@ -760,7 +562,7 @@ void Tracking::Track()
             mState = LOST;
 
         // Update drawer
-        mpFrameDrawer->Update(this);
+//        mpFrameDrawer->Update(this);
 
         // If tracking were good, check if we insert a keyframe
         if (bOK)
@@ -1057,7 +859,7 @@ bool Tracking::TrackReferenceKeyFrame()
     if (nmatches < 15)
         return false;
 
-    mCurrentFrame.mvpMapPoints = vpMapPointMatches;//序号是特征点在当前帧的中的特征点序号，mappoint其实是与之匹配的地图点
+    mCurrentFrame.mvpMapPoints = vpMapPointMatches;
     mCurrentFrame.SetPose(mLastFrame.mTcw);
 
     Optimizer::PoseOptimization(&mCurrentFrame);
@@ -1073,7 +875,7 @@ bool Tracking::TrackReferenceKeyFrame()
                 MapPoint *pMP = mCurrentFrame.mvpMapPoints[i];
 
                 mCurrentFrame.mvpMapPoints[i] = static_cast<MapPoint *>(NULL);
-                mCurrentFrame.mvbOutlier[i] = false;  //为什么置为fale?
+                mCurrentFrame.mvbOutlier[i] = false;  //
                 pMP->mbTrackInView = false;
                 pMP->mnLastFrameSeen = mCurrentFrame.mnId;
                 nmatches--;
@@ -1219,7 +1021,7 @@ bool Tracking::TrackLocalMap()
 
     UpdateLocalMap();
 
-    //投影到当前帧中确定参与优化的点
+
     SearchLocalPoints();
 
     // Optimize Pose
@@ -1341,7 +1143,7 @@ bool Tracking::NeedNewKeyFrame()
         return false;
 }
 
-//创建新的地图点到map中，然后才将关键帧插入到Localmapper，localmapper再进行更新，包括计算bow
+
 void Tracking::CreateNewKeyFrame()
 {
     if (!mpLocalMapper->SetNotStop(true))

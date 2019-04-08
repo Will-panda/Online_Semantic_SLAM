@@ -33,7 +33,7 @@ set(CMAKE_PREFIX_PATH “/usr/local/share//OpenCV”)
 find_package(OpenCV 3.0 QUIET)
 find_package(Pangolin REQUIRED)
 find_package(PCL REQUIRED)
-
+find_package(Sophus REQUIRED)
 if(NOT OpenCV_FOUND)
    find_package(OpenCV 2.4.3 QUIET)
    if(NOT OpenCV_FOUND)
@@ -48,6 +48,7 @@ include_directories(
         ${PROJECT_SOURCE_DIR}/include
         ${Pangolin_INCLUDE_DIRS}
         ${PCL_INCLUDE_DIRS}
+        ${Sophus_INCLUDE_DIRS}
 )
 add_definitions(${PCL_DEFINITIONS})
 link_directories(${PCL_LIBRARY_DIRS})
@@ -84,6 +85,7 @@ ${PROJECT_SOURCE_DIR}/Thirdparty/DBoW2/lib/libDBoW2.so
 ${PROJECT_SOURCE_DIR}/Thirdparty/g2o/lib/libg2o.so
 ${PROJECT_SOURCE_DIR}/Thirdparty/libelas/lib/liblibelas.so
 ${PCL_LIBRARIES}
+${Sophus_LIBRARIES}
 )
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/bin/)
@@ -94,9 +96,11 @@ target_link_libraries(stereo_kitti ${PROJECT_NAME})
 #add_executable(bin_vocabulary tools/bin_vocabulary.cpp)
 #target_link_libraries(bin_vocabulary ${PROJECT_NAME})
 
-#add_executable(cal_disparity tools/cal_disparity.cpp)
-#target_link_libraries(cal_disparity ${PROJECT_NAME})
+add_executable(cal_disparity tools/cal_disparity.cpp)
+target_link_libraries(cal_disparity ${PROJECT_NAME})
 
 #add_executable(test_speed tools/testSpeed.cpp)
 #target_link_libraries(test_speed ${PROJECT_NAME})
 
+add_executable(eval tools/evaluate.cpp)
+target_link_libraries(eval ${PROJECT_NAME})

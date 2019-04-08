@@ -239,7 +239,7 @@ int ORBmatcher::SearchByBoW(KeyFrame* pKF,Frame &F, vector<MapPoint*> &vpMapPoin
                             if(rot<0.0)
                                 rot+=360.0f;
                             int bin = round(rot*factor);
-                            if(bin==HISTO_LENGTH) //统计直方图
+                            if(bin==HISTO_LENGTH)
                                 bin=0;
                             assert(bin>=0 && bin<HISTO_LENGTH);
                             rotHist[bin].push_back(bestIdxF);
@@ -1657,6 +1657,11 @@ int ORBmatcher::DescriptorDistance(const cv::Mat &a, const cv::Mat &b)
         v = v - ((v >> 1) & 0x55555555);
         v = (v & 0x33333333) + ((v >> 2) & 0x33333333);
         dist += (((v + (v >> 4)) & 0xF0F0F0F) * 0x1010101) >> 24;
+//        unsigned  int v = *pa ^ *pb;
+//        while(v){
+//            v = (v - 1) & v;
+//            dist++;
+//        }
     }
 
     return dist;

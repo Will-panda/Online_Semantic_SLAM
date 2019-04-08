@@ -84,7 +84,7 @@ static float IC_Angle(const Mat& image, Point2f pt,  const vector<int> & u_max)
     for (int u = -HALF_PATCH_SIZE; u <= HALF_PATCH_SIZE; ++u)
         m_10 += u * center[u];
 
-    // Go line by line in the circuI853lar patch
+    // Go line by line in the circular patch
     int step = (int)image.step1();
     for (int v = 1; v <= HALF_PATCH_SIZE; ++v)
     {
@@ -119,7 +119,7 @@ static void computeOrbDescriptor(const KeyPoint& kpt,
         center[cvRound(pattern[idx].x*b + pattern[idx].y*a)*step + \
                cvRound(pattern[idx].x*a - pattern[idx].y*b)]
 
-
+               //8 compare per time, total 32* 8 = 256
     for (int i = 0; i < 32; ++i, pattern += 16)
     {
         int t0, t1, val;
@@ -412,7 +412,7 @@ ORBextractor::ORBextractor(int _nfeatures, float _scaleFactor, int _nlevels,
     nfeatures(_nfeatures), scaleFactor(_scaleFactor), nlevels(_nlevels),
     iniThFAST(_iniThFAST), minThFAST(_minThFAST)
 {
-    mvScaleFactor.resize(nlevels);
+    mvScaleFactor.resize(nlevels);//1.2
     mvLevelSigma2.resize(nlevels);
     mvScaleFactor[0]=1.0f;
     mvLevelSigma2[0]=1.0f;
@@ -434,6 +434,7 @@ ORBextractor::ORBextractor(int _nfeatures, float _scaleFactor, int _nlevels,
 
     mnFeaturesPerLevel.resize(nlevels);
     float factor = 1.0f / scaleFactor;
+    //using formulation of qual ratio series summation calculate the first item
     float nDesiredFeaturesPerScale = nfeatures*(1 - factor)/(1 - (float)pow((double)factor, (double)nlevels));
 
     int sumFeatures = 0;
@@ -443,22 +444,24 @@ ORBextractor::ORBextractor(int _nfeatures, float _scaleFactor, int _nlevels,
         sumFeatures += mnFeaturesPerLevel[level];
         nDesiredFeaturesPerScale *= factor;
     }
-    mnFeaturesPerLevel[nlevels-1] = std::max(nfeatures - sumFeatures, 0);
+    mnFeaturesPerLevel[nlevels-1] = std::max(nfeatures - sumFeatures, 0);//the top level have the left or 0;
+
 
     const int npoints = 512;
-    const Point* pattern0 = (const Point*)bit_pattern_31_;
-    std::copy(pattern0, pattern0 + npoints, std::back_inserter(pattern));
+    const Point* pattern0 = (const Point*)bit_pattern_31_;//descriptor pattern
+    std::copy(pattern0, pattern0 + npoints, std::back_inserter(pattern));//use cv::point will lower the efficiency;
 
     //This is for orientation
     // pre-compute the end of a row in a circular patch
     umax.resize(HALF_PATCH_SIZE + 1);
 
-    int v, v0, vmax = cvFloor(HALF_PATCH_SIZE * sqrt(2.f) / 2 + 1);
+    int v, v0, vmax = cvFloor(HALF_PATCH_SIZE * sqrt(2.f) / 2 + 1);//if have decimal party ,vmax and vmin will be the same.
     int vmin = cvCeil(HALF_PATCH_SIZE * sqrt(2.f) / 2);
+//    printf("vmax %d ,vim %d \n",vmax,vmin);//actually is the same as patch siaze = 15;
+    //is there any difference from compute a squre patch directly?
     const double hp2 = HALF_PATCH_SIZE*HALF_PATCH_SIZE;
     for (v = 0; v <= vmax; ++v)
         umax[v] = cvRound(sqrt(hp2 - v * v));
-
     // Make sure we are symmetric
     for (v = HALF_PATCH_SIZE, v0 = 0; v >= vmin; --v)
     {
@@ -539,9 +542,11 @@ void ExtractorNode::DivideNode(ExtractorNode &n1, ExtractorNode &n2, ExtractorNo
 vector<cv::KeyPoint> ORBextractor::DistributeOctTree(const vector<cv::KeyPoint>& vToDistributeKeys, const int &minX,
                                        const int &maxX, const int &minY, const int &maxY, const int &N, const int &level)
 {
-    // Compute how many initial nodes   
+    // Compute how many initial nodes,nodes rectangle but close to square enough
+    // Node height is maxY - minY
     const int nIni = round(static_cast<float>(maxX-minX)/(maxY-minY));
 
+    //width
     const float hX = static_cast<float>(maxX-minX)/nIni;
 
     list<ExtractorNode> lNodes;
@@ -571,7 +576,7 @@ vector<cv::KeyPoint> ORBextractor::DistributeOctTree(const vector<cv::KeyPoint>&
 
     list<ExtractorNode>::iterator lit = lNodes.begin();
 
-    //node包含关键点数等于0的删掉，等于1的不再划分
+    //node
     while(lit!=lNodes.end())
     {
         if(lit->vKeys.size()==1)
@@ -626,7 +631,7 @@ vector<cv::KeyPoint> ORBextractor::DistributeOctTree(const vector<cv::KeyPoint>&
                     {
                         nToExpand++;
                         vSizeAndPointerToNode.push_back(make_pair(n1.vKeys.size(),&lNodes.front()));
-                        lNodes.front().lit = lNodes.begin();
+                        lNodes.front().lit = lNodes.begin();//save location in list lNode.
                     }
                 }
                 if(n2.vKeys.size()>0)
@@ -776,7 +781,7 @@ void ORBextractor::ComputeKeyPointsOctTree(vector<vector<KeyPoint> >& allKeypoin
         const int maxBorderX = mvImagePyramid[level].cols-EDGE_THRESHOLD+3;
         const int maxBorderY = mvImagePyramid[level].rows-EDGE_THRESHOLD+3;
 
-        vector<cv::KeyPoint> vToDistributeKeys;  //每层提的特征点
+        vector<cv::KeyPoint> vToDistributeKeys;  //
         vToDistributeKeys.reserve(nfeatures*10);
 
         const float width = (maxBorderX-minBorderX);
@@ -784,7 +789,7 @@ void ORBextractor::ComputeKeyPointsOctTree(vector<vector<KeyPoint> >& allKeypoin
 
         const int nCols = width/W;
         const int nRows = height/W;
-        const int wCell = ceil(width/nCols); //向上取整
+        const int wCell = ceil(width/nCols);
         const int hCell = ceil(height/nRows);
 
         for(int i=0; i<nRows; i++)
@@ -806,7 +811,7 @@ void ORBextractor::ComputeKeyPointsOctTree(vector<vector<KeyPoint> >& allKeypoin
                 if(maxX>maxBorderX)
                     maxX = maxBorderX;
 
-                vector<cv::KeyPoint> vKeysCell;  //对每个小网格提feature
+                vector<cv::KeyPoint> vKeysCell;
                 FAST(mvImagePyramid[level].rowRange(iniY,maxY).colRange(iniX,maxX),
                      vKeysCell,iniThFAST,true);
 
@@ -831,7 +836,6 @@ void ORBextractor::ComputeKeyPointsOctTree(vector<vector<KeyPoint> >& allKeypoin
         vector<KeyPoint> & keypoints = allKeypoints[level];
         keypoints.reserve(nfeatures);
 
-        //将提出来的feature用OctTree划分成mnFeaturesPerLevel[level]个Bin,在每个Bin里面挑选出最大response的点作为该bin的代表
         keypoints = DistributeOctTree(vToDistributeKeys, minBorderX, maxBorderX,
                                       minBorderY, maxBorderY,mnFeaturesPerLevel[level], level);
 
@@ -1069,7 +1073,7 @@ void ORBextractor::operator()( InputArray _image, InputArray _mask, vector<KeyPo
         _descriptors.create(nkeypoints, 32, CV_8U);
         descriptors = _descriptors.getMat();
     }
-
+    //all keypoint store in this keypoints
     _keypoints.clear();
     _keypoints.reserve(nkeypoints);
 
@@ -1112,8 +1116,8 @@ void ORBextractor::ComputePyramid(cv::Mat image)
         float scale = mvInvScaleFactor[level];
         Size sz(cvRound((float)image.cols*scale), cvRound((float)image.rows*scale));
         Size wholeSize(sz.width + EDGE_THRESHOLD*2, sz.height + EDGE_THRESHOLD*2);
-        Mat temp(wholeSize, image.type()), masktemp;
-        mvImagePyramid[level] = temp(Rect(EDGE_THRESHOLD, EDGE_THRESHOLD, sz.width, sz.height));
+        Mat temp(wholeSize, image.type());
+        mvImagePyramid[level] = temp(Rect(EDGE_THRESHOLD, EDGE_THRESHOLD, sz.width, sz.height));//this is shallow copy
 
         // Compute the resized image
         if( level != 0 )
@@ -1126,7 +1130,7 @@ void ORBextractor::ComputePyramid(cv::Mat image)
         else
         {
             copyMakeBorder(image, temp, EDGE_THRESHOLD, EDGE_THRESHOLD, EDGE_THRESHOLD, EDGE_THRESHOLD,
-                           BORDER_REFLECT_101);            
+                           BORDER_REFLECT_101);
         }
     }
 

@@ -196,7 +196,7 @@ cv::Mat SemanticMapper::DrawColorMap(cv::Mat &input)
 
 void SemanticMapper::UpdateReferencePointCloud(FrameDataBuffer *pFrameData)
 {
-    const int minObserTime = 4;
+    const int minObserTime = 3;
     int outRanger = 0;
     int totalCur = 0;
     int holeLabel = 0;
@@ -217,7 +217,7 @@ void SemanticMapper::UpdateReferencePointCloud(FrameDataBuffer *pFrameData)
     cv::Mat translationCurToRef = curToRef.rowRange(0, 3).col(3);
 
     cv::Mat disparityOrigin = pFrameData->disparity;
-    float *pDis = (float *) disparityOrigin.data;
+    float *pDis = (float*)disparityOrigin.data;
     cv::Mat segmentOrign = pFrameData->segment;
     uchar *pflag = segmentOrign.data;
     std::vector<bool> vVliadByGradient = pFrameData->mvbValid;
@@ -228,9 +228,10 @@ void SemanticMapper::UpdateReferencePointCloud(FrameDataBuffer *pFrameData)
     const int rowEnd = disparityOrigin.rows - 5;
     const int colStart = 5;
     const int colEnd = disparityOrigin.cols - 5;
+    int step = disparityOrigin.step1();
     for (int v = rowStart; v < rowEnd; v++)
     {
-        int rowShift = v * disparityOrigin.cols;
+        int rowShift = v * step;
         for (int u = colStart; u < colEnd; u++)
         {
             //valid by gradient
@@ -243,6 +244,7 @@ void SemanticMapper::UpdateReferencePointCloud(FrameDataBuffer *pFrameData)
             if (curFlag == ROAD || curFlag == SIDEWAILK || curFlag == POLE)
             {
                 float disp = pDis[index];
+                if(disp < 0.01) continue;
                 float zc = mbf / disp;
                 if (zc > 0)
                 {
@@ -436,7 +438,7 @@ PointCloudNode::PointCloudNode(SemanticMapper *pMapper, FrameDataBuffer *pFrameD
     mbf = mpSemanticMapper->mbf;
 
     cv::Mat disparityOrigin = pFrameData->disparity;
-    float *pDis = (float *) disparityOrigin.data;
+    float *pDis = (float*) disparityOrigin.data;
     mnFrameWidth = disparityOrigin.cols;
     mnFrameHeight = disparityOrigin.rows;
     cv::Mat segmentOrign = pFrameData->segment;
@@ -451,9 +453,10 @@ PointCloudNode::PointCloudNode(SemanticMapper *pMapper, FrameDataBuffer *pFrameD
     mnColStart = 5;
     mnColEnd = disparityOrigin.cols - 5;
 
+    int step = disparityOrigin.step1();
     for (int v = mnRowStart; v < mnRowEnd; v++)
     {
-        int rowShift = v * disparityOrigin.cols;
+        int rowShift = v * step;
         for (int u = mnColStart; u < mnColEnd; u++)
         {
             //valid by gradient
@@ -467,6 +470,7 @@ PointCloudNode::PointCloudNode(SemanticMapper *pMapper, FrameDataBuffer *pFrameD
                 flag == POLE)
             {
                 float disp = pDis[index];
+                if(disp < 0.01) continue;
                 float zc = mbf / disp;
                 if (zc > 0)
                 {
@@ -478,7 +482,6 @@ PointCloudNode::PointCloudNode(SemanticMapper *pMapper, FrameDataBuffer *pFrameD
                     mvpMapPoints.push_back(pSMapPoint);
                 }
             }
-
         }
     }
     delete pFrameData;

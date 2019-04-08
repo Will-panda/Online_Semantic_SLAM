@@ -56,7 +56,6 @@ KeyFrame::KeyFrame(Frame &F, Map *pMap, KeyFrameDatabase *pKFDB):
     SetPose(F.mTcw);
 
 
-
 }
 
 void KeyFrame::ComputeBoW()

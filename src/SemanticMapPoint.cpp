@@ -28,7 +28,7 @@ void SemanticMapPoint::AssertObservation(SemanticMapPoint *pSPoint)
 
 bool SemanticMapPoint::MergeObservation()
 {
-    const float distanceThreshold = 5;
+    const float distanceThreshold = 0.7;
     for (auto &location: mvLocationObserve)
     {
         if (location.at<float>(2, 0) < 0)
@@ -51,7 +51,7 @@ bool SemanticMapPoint::MergeObservation()
     vector<float> orderedDistance = vdistance;
     std::sort(orderedDistance.begin(), orderedDistance.end());
     float difference = *(orderedDistance.rbegin()) - *(orderedDistance.begin());
-        cout << "  difference: " << difference << endl;
+//        cout << "  difference: " << difference << endl;
 
     if (difference > distanceThreshold)
     {
