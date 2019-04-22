@@ -18,6 +18,9 @@ void DrawTrajectory(std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen:
 void ComputeRMSE(std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> > &GTs,
                  std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> > &Test);
 
+void ComputeError(std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> > &GTs,
+                std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> > &Test);
+
 void LoadTrajectory(const std::string &file,
                     std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> > &trajectory);
 
@@ -29,7 +32,17 @@ int main(int argc, char **argv)
     std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> > Tests;
 
     LoadTrajectory(gtTrajectoryFile, GTs);
+
     LoadTrajectory(testTrajectoryFile, Tests);
+
+    if (GTs.empty() || Tests.empty())
+    {
+        std::cerr << "Trajectory is empty!" << std::endl;
+        return -1;
+    }
+    assert(GTs.size() == Tests.size());
+
+//    ComputeError(GTs,Tests);
 
     ComputeRMSE(GTs, Tests);
 
@@ -45,7 +58,6 @@ void LoadTrajectory(const std::string &file,
     std::ifstream fTrajectory;
 
     fTrajectory.open(file.c_str());
-    Eigen::Matrix4d Twc = Eigen::Matrix4d::Ones();
     while (!fTrajectory.eof())
     {
         std::string s;
@@ -54,7 +66,7 @@ void LoadTrajectory(const std::string &file,
         {
             std::stringstream ss;
             ss << s;
-            Eigen::Matrix4d Twc = Eigen::Matrix4d::Ones();
+            Eigen::Matrix4d Twc = Eigen::Matrix4d::Identity();
 
             ss >> Twc(0, 0) >> Twc(0, 1) >> Twc(0, 2) >> Twc(0, 3) >>
                Twc(1, 0) >> Twc(1, 1) >> Twc(1, 2) >> Twc(1, 3) >>
@@ -62,6 +74,17 @@ void LoadTrajectory(const std::string &file,
             trajectory.push_back(Twc);
         }
     }
+
+    if(!trajectory[0].isIdentity())
+    {
+        Eigen::Matrix4d origin = trajectory[0];
+        for(int i = 1; i < trajectory.size();i++)
+        {
+            trajectory[i] = origin.inverse() * trajectory[i];
+        }
+        trajectory[0] = Eigen::Matrix4d::Identity();
+    }
+
     return;
 }
 
@@ -138,12 +161,6 @@ void ComputeRMSE(std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Ma
                  std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> > &Test)
 {
     using namespace std;
-    if (GTs.empty() || Test.empty())
-    {
-        cerr << "Trajectory is empty!" << endl;
-        return;
-    }
-    assert(GTs.size() == Test.size());
 
     double sum_err = 0;
     for (int i = 0; i < GTs.size(); i++)

@@ -58,7 +58,10 @@ int main(int argc, char **argv)
 
     // Main loop
     cv::Mat imLeft, imRight,imSeg,imDisparity;
-    for(int ni=0; ni<nImages; ni++)
+    int start=0;
+//    int end = 1150;
+    int end = nImages;
+    for(int ni=start; ni<end; ni++)
     {
 //        if(ni > 100) break;
         // Read left and right images from file
@@ -129,7 +132,8 @@ int main(int argc, char **argv)
     cout << "mean tracking time: " << totaltime/nImages << endl;
 
     // Save camera trajectory
-    SLAM.SaveTrajectoryKITTI("CameraTrajectory.txt");
+    string resultPath = string(argv[3])+"/CameraTrajectory.txt";
+    SLAM.SaveTrajectoryKITTI(resultPath);
 
     return 0;
 }

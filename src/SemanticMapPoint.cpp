@@ -28,7 +28,12 @@ void SemanticMapPoint::AssertObservation(SemanticMapPoint *pSPoint)
 
 bool SemanticMapPoint::MergeObservation()
 {
-    const float distanceThreshold = 0.7;
+    float distanceThreshold ;
+    if(mLabel == ROAD || mLabel == SIDEWAILK){
+        distanceThreshold = 5;
+    }else{
+        distanceThreshold = 1.5;
+    }
     for (auto &location: mvLocationObserve)
     {
         if (location.at<float>(2, 0) < 0)
@@ -57,7 +62,7 @@ bool SemanticMapPoint::MergeObservation()
     {
         return false;
     }
-//        cout<<"final distance: "<<finalDis<<endl;
+
     mLocation = *mvLocationObserve.rbegin();
     mSatus = STABLE;
     return true;

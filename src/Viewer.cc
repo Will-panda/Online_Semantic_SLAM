@@ -83,6 +83,8 @@ void Viewer::Run()
     pangolin::Var<bool> menuShowFlow("menu.Show Flow ", false, true);
     pangolin::Var<bool> menuShowOrb("menu.Show ORB ", false, true);
     pangolin::Var<bool> menuShowDisparity("menu.Show Disparity ", false, true);
+    pangolin::Var<bool> menuShowSemanticColor("menu.Show SemanticColor ", false, true);
+    pangolin::Var<bool> menuShowOriginal("menu.Show Color ", false, true);
 
 
     // Define Camera Render Object (for view / scene browsing)
@@ -179,19 +181,33 @@ void Viewer::Run()
             cv::imshow("OS-SLAM:Show Flow", imgOpticalDebug);
         }
 
-        if(menuShowOrb){
+        if (menuShowOrb)
+        {
             cv::namedWindow("OS-SLAM:Show ORB", 0);
             cv::Mat imgORB = mpFrameDrawer->DrawFrame();
             cv::imshow("OS-SLAM:Show ORB", imgORB);
         }
 
 
-        if(menuShowDisparity){
+        if (menuShowDisparity)
+        {
             cv::namedWindow("OS-SLAM: Disparity", 0);
             cv::Mat imgDis = mpFrameDrawer->DrawDisparity();
             cv::imshow("OS-SLAM: Disparity", imgDis);
         }
 
+        if (menuShowSemanticColor)
+        {
+            cv::namedWindow("OS-SLAM: Semantic Color", 0);
+            cv::Mat imgColor = mpFrameDrawer->DebugDrawSegMent();
+            cv::imshow("OS-SLAM: Semantic Color", imgColor);
+        }
+        if(menuShowOriginal)
+        {
+            cv::namedWindow("OS-SLAM: Original", 0);
+            cv::Mat imgColor = mpFrameDrawer->DrawOriginal();
+            cv::imshow("OS-SLAM: Original", imgColor);
+        }
         //Draw semantic point
         if (menuSemantic)
             mpSmapper->DrawAllSemanticPoint();
@@ -211,7 +227,7 @@ void Viewer::Run()
 //        cv::imshow("ORB-SLAM2: Distparity",distparity);
 //        string dispatity_result = "/data/dataset/kitti/kitti_color/result/" + to_string(mpTracker->mCurrentFrame.mnId);
 //        cv::imwrite(dispatity_result + ".png",distparity);
-            cv::waitKey(mT);
+        cv::waitKey(mT);
 
 //        cv::imshow("ORB-SLAM2: SegmentVize",SegmentVize);
 //        cv::imshow("ORB-SLAM2: debugMaxGrad",debugMaxGrad);

@@ -153,7 +153,11 @@ bool ORBmatcher::CheckDistEpipolarLine(const cv::KeyPoint &kp1,const cv::KeyPoin
 
     const float dsqr = num*num/den;
 
-    return dsqr<3.84*pKF2->mvLevelSigma2[kp2.octave];
+//    int level = kp2.octave;
+//    if(level < 0 || level > 7){
+//        return false;
+//    }
+    return dsqr < 3.84 * pKF2->mvLevelSigma2[kp2.octave];
 }
 
 int ORBmatcher::SearchByBoW(KeyFrame* pKF,Frame &F, vector<MapPoint*> &vpMapPointMatches)

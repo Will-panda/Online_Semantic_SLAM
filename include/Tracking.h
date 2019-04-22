@@ -86,6 +86,9 @@ public:
   // Use this function if you have deactivated local mapping and you only want to localize the camera.
   void InformOnlyTracking(const bool &flag);
 
+  inline bool IsKFUpdate(){return mbKFupdate;}
+  inline void SetKFUpdate(bool flag) {mbKFupdate = flag;}
+
   cv::Mat DbugDrawDynamicProposal(const vector<cv::Point2f> &vDynamicProposal);
 
   inline float GetDepthThreshold()
@@ -244,6 +247,7 @@ protected:
 
   bool mbUseGT;
 
+  bool mbKFupdate;
   list<MapPoint *> mlpTemporalPoints;
 };
 

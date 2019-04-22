@@ -128,6 +128,11 @@ cv::Mat FrameDrawer::DrawFrame()
     return imWithInfo;
 }
 
+cv::Mat FrameDrawer::DrawOriginal()
+{
+    return mIm;
+}
+
 cv::Mat FrameDrawer::DebugDynamic()
 {
     unique_lock<mutex> lock(mMutex);
@@ -241,16 +246,16 @@ cv::Mat FrameDrawer::DebugDrawSegMent()
                 debugSegmentVize.at<cv::Vec3b>(v, u) = cv::Vec3b(70, 130, 180);
             if (lable == ROAD)
                 debugSegmentVize.at<cv::Vec3b>(v, u) = cv::Vec3b(128, 54, 128);
-//            if(lable == CAR || lable == TRUCK ||
-//                lable == BUS ||lable ==TRAIN  ||
-//                lable ==MOTORCYCLE ||lable == BICYCLE)
-//                debugSegmentVize.at<cv::Vec3b>(v,u) = cv::Vec3b(0,0,142);
-//            if(lable == PERSION || lable == RIDER)
-//                debugSegmentVize.at<cv::Vec3b>(v,u) = cv::Vec3b(220,20,60);
+            if (lable == CAR || lable == TRUCK ||
+                lable == BUS || lable == TRAIN ||
+                lable == MOTORCYCLE || lable == BICYCLE)
+                debugSegmentVize.at<cv::Vec3b>(v, u) = cv::Vec3b(0, 0, 142);
+            if (lable == PERSION || lable == RIDER)
+                debugSegmentVize.at<cv::Vec3b>(v, u) = cv::Vec3b(220, 20, 60);
             if (lable == SIDEWAILK)
                 debugSegmentVize.at<cv::Vec3b>(v, u) = cv::Vec3b(244, 35, 232);
-//            if(lable == TRAFFIC_SIGN)
-//                debugSegmentVize.at<cv::Vec3b>(v,u) = cv::Vec3b(220,220,0);
+            if (lable == POLE)
+                debugSegmentVize.at<cv::Vec3b>(v, u) = cv::Vec3b(220, 220, 0);
         }
     }
     return debugSegmentVize;

@@ -64,7 +64,6 @@ Frame::Frame(const Frame &frame)
 }
 
 
-
 Frame::Frame(const cv::Mat &imLeft, const cv::Mat &imRight, const cv::Mat &imSeg,
              const vector<cv::Point2f> &vDynamicProposal, const double &timeStamp, ORBextractor *extractorLeft,
              ORBextractor *extractorRight, ORBVocabulary *voc, cv::Mat &K, cv::Mat &distCoef, const float &bf,
@@ -90,13 +89,16 @@ Frame::Frame(const cv::Mat &imLeft, const cv::Mat &imRight, const cv::Mat &imSeg
     assert(imLeft.type() == CV_8UC1 && imRight.type() == CV_8UC1);
     thread threadDisparity(&Frame::CalDispatity, this, imLeft, imRight);
 
-    thread threadLeft(&Frame::ExtractORB, this, 0, imLeft);
-    thread threadRight(&Frame::ExtractORB, this, 1, imRight);
+    thread threadLeft(&Frame::ExtractORB, this, 0, imLeft,imSeg);
+    thread threadRight(&Frame::ExtractORB, this, 1, imRight,imSeg);
     threadLeft.join();
     threadRight.join();
     cout << "ExtractOrb cost: " << t1.Toc() << " ms" << endl;
 
     imSeg.copyTo(mImSegment);
+
+//    DeleteDynamicObject();
+
     //build gradiant
     mnNumberOfMappable = 0; //record high gradient point;
 
@@ -106,7 +108,9 @@ Frame::Frame(const cv::Mat &imLeft, const cv::Mat &imRight, const cv::Mat &imSeg
     N = mvKeys.size();
     cout << "Build Gradient cost: " << t1.Toc() << " ms" << endl;
     if (mvKeys.empty())
+    {
         return;
+    }
 
     UndistortKeyPoints();
 
@@ -156,7 +160,7 @@ void Frame::CalDispatity(const cv::Mat &left, const cv::Mat &right)
     assert(left.type() == CV_8UC1);
     assert(right.type() == CV_8UC1);
     elas.process(left.data, right.data, pLeftDisparity, pRightDisparity, dims);
-    cv::Mat disparity(left.size(),CV_32F,pLeftDisparity);
+    cv::Mat disparity(left.size(), CV_32F, pLeftDisparity);
     disparity.copyTo(mImDisparityLeft);
 
 };
@@ -178,10 +182,44 @@ void Frame::AssignFeaturesToGrid()
     }
 }
 
-void Frame::ExtractORB(int flag, const cv::Mat &im)
+void Frame::DeleteDynamicObject()
+{
+    vector<cv::KeyPoint>::iterator iter = mvKeys.begin();
+//    mvLable = vector<int>(mvKeysUn.size(), -1);
+    int index = 0;
+    int deletCount = 0;
+    while (iter != mvKeys.end())
+    {
+        int dx = round(iter->pt.x);
+        int dy = round(iter->pt.y);
+        if (dx < 0 || dy < 0 || dx >= mImSegment.cols || dy >= mImSegment.rows)
+        {
+            iter++;
+            index++;
+        }
+        uchar lable = mImSegment.at<uchar>(dy, dx);
+        if (lable == PERSION || lable == CAR ||
+            lable == TRUCK || lable == BUS || lable == TRAIN ||
+            lable == MOTORCYCLE || lable == BICYCLE)
+        {
+            iter = mvKeys.erase(iter);
+            index++;
+            deletCount++;
+        } else
+        {
+//            mvLable[index] = lable;
+            iter++;
+            index++;
+        }
+
+    }
+    cout<<"delet key point on dynamic object: "<<deletCount<<endl;
+}
+
+void Frame::ExtractORB(int flag, const cv::Mat &im,const cv::Mat &imSeg)
 {
     if (flag == 0)
-        (*mpORBextractorLeft)(im, cv::Mat(), mvKeys, mDescriptors);
+        (*mpORBextractorLeft)(im,imSeg, mvKeys, mDescriptors);
     else
         (*mpORBextractorRight)(im, cv::Mat(), mvKeysRight, mDescriptorsRight);
 }

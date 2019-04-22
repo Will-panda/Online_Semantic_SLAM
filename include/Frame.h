@@ -70,7 +70,7 @@ public:
 
 //    ~Frame();
   // Extract ORB on the image. 0 for left image and 1 for right image.
-  void ExtractORB(int flag, const cv::Mat &im);
+  void ExtractORB(int flag, const cv::Mat &im,const cv::Mat &imSeg);
 
   void CalDispatity(const cv::Mat& left,const cv::Mat& right);
 
@@ -82,6 +82,8 @@ public:
 
   // Computes rotation, translation and camera center matrices from the camera pose.
   void UpdatePoseMatrices();
+
+  void DeleteDynamicObject();
 
   // Returns the camera center.
   inline cv::Mat GetCameraCenter()
@@ -158,7 +160,7 @@ public:
   // In the RGB-D case, RGB images can be distorted.
   std::vector<cv::KeyPoint> mvKeys, mvKeysRight;
   std::vector<cv::KeyPoint> mvKeysUn;
-
+//  std::vector<int> mvLable;
   // Corresponding stereo coordinate and depth for each keypoint.
   // "Monocular" keypoints have a negative value.
   std::vector<float> mvuRight;

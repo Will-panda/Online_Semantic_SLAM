@@ -47,11 +47,11 @@ public:
 
     // Draw last processed frame.
     cv::Mat DrawFrame();
-    // Draw disparity
     cv::Mat DrawDisparity();
     cv::Mat DebugDynamic();
     cv::Mat DebugOpticalFlow();
     cv::Mat DebugDrawMaxGradPoint();
+    cv::Mat DrawOriginal();
 
     cv::Mat DebugDrawSegMent();
 protected:

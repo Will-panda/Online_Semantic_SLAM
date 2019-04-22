@@ -214,7 +214,11 @@ cv::Mat System::TrackStereoSemantic(const cv::Mat &imLeft, const cv::Mat &imRigh
     mpFrameDrawer->Update(mpTracker);
 
     TicToc timeCheck;
-    mpSMapper->UpdateFrame(&mpTracker->mCurrentFrame);
+//    if(mpTracker->IsKFUpdate())
+//    {
+        mpSMapper->UpdateFrame(&mpTracker->mCurrentFrame);
+//        mpTracker->SetKFUpdate(false);
+//    }
     cout<<"Semantic updateFrame cost: "<< timeCheck.Toc()<<" ms"<<endl;
 
     unique_lock<mutex> lock2(mMutexState);
@@ -273,8 +277,8 @@ void System::Shutdown()
             usleep(5000);
         }
 
-        if (mpViewer)
-            pangolin::BindToContext("ORB-SLAM2: Map Viewer");
+//        if (mpViewer)
+//            pangolin::BindToContext("ORB-SLAM2: Map Viewer");
     } else
     {
         return;
