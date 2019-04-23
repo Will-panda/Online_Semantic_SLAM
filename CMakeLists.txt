@@ -102,8 +102,8 @@ target_link_libraries(cal_disparity ${PROJECT_NAME})
 #add_executable(test_speed tools/testSpeed.cpp)
 #target_link_libraries(test_speed ${PROJECT_NAME})
 
-#add_executable(eval tools/evaluate.cpp)
-#target_link_libraries(eval ${PROJECT_NAME})
+add_executable(eval tools/evaluate.cpp)
+target_link_libraries(eval ${PROJECT_NAME})
 
-add_executable(match tools/match_feature.cpp)
-target_link_libraries(match ${PROJECT_NAME})
+#add_executable(match tools/match_feature.cpp)
+#target_link_libraries(match ${PROJECT_NAME})

@@ -19,38 +19,209 @@ void ComputeRMSE(std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Ma
                  std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> > &Test);
 
 void ComputeError(std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> > &GTs,
-                std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> > &Test);
+                  std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> > &Test);
 
 void LoadTrajectory(const std::string &file,
                     std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> > &trajectory);
+
+void ComputeLength(const std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> > &trajectory,
+                   std::vector<double> &trajectoryLength);
+
+struct errors {
+int32_t first_frame;
+float   r_err;
+float   t_err;
+float   len;
+float   speed;
+errors (int32_t first_frame,float r_err,float t_err,float len,float speed) :
+        first_frame(first_frame),r_err(r_err),t_err(t_err),len(len),speed(speed) {}
+};
+
+std::vector<errors> calcSequenceErrors (std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> > &posesGt,
+                                        std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> > &poseResult,std::vector<double>& distGT);
+
+
+int32_t lastFrameFromSegmentLength(std::vector<double> &dist,int32_t first_frame,float len);
+
+void SaveErrors(const std::vector<errors>& totalError,const std::string& outputPath);
 
 int main(int argc, char **argv)
 {
     std::string gtTrajectoryFile = argv[1];
     std::string testTrajectoryFile = argv[2];
-    std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> > GTs;
-    std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> > Tests;
+    std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> > poseGT;
+    std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> > poseTest;
 
-    LoadTrajectory(gtTrajectoryFile, GTs);
+    LoadTrajectory(gtTrajectoryFile, poseGT);
 
-    LoadTrajectory(testTrajectoryFile, Tests);
+    LoadTrajectory(testTrajectoryFile, poseTest);
 
-    if (GTs.empty() || Tests.empty())
+    if (poseGT.empty() || poseTest.empty())
     {
         std::cerr << "Trajectory is empty!" << std::endl;
         return -1;
     }
-    assert(GTs.size() == Tests.size());
+    assert(poseGT.size() == poseTest.size());
 
-//    ComputeError(GTs,Tests);
+//    ComputeError(poseGT,poseTest);
 
-    ComputeRMSE(GTs, Tests);
+    ComputeRMSE(poseGT, poseTest);
 
-    DrawTrajectory(GTs, Tests);
+    std::vector<double> trajectoryLenthGT;
+    std::vector<double> trajectoryLenthTest;
+    ComputeLength(poseGT, trajectoryLenthGT);
+    ComputeLength(poseTest, trajectoryLenthTest);
+    printf("length of GT: %lf m\n",trajectoryLenthGT.back());
+
+    std::vector<errors> totalError =  calcSequenceErrors(poseGT,poseTest,trajectoryLenthGT);
+
+    std::string outputPath = argv[3];
+    SaveErrors(totalError,outputPath);
+
+
+    DrawTrajectory(poseGT, poseTest);
 
     return 0;
 }
 
+void SaveErrors(const std::vector<errors>& totalError,const std::string& outputPath)
+{
+    float lengths[] = {100,200,300,400,500,600,700,800};
+    int32_t num_lengths = 8;
+    using namespace std;
+    // file names
+    char file_name_tl[1024]; sprintf(file_name_tl,"%s/tl.txt",outputPath.c_str() );
+    char file_name_rl[1024]; sprintf(file_name_rl,"%s/rl.txt",outputPath.c_str() );
+    char file_name_ts[1024]; sprintf(file_name_ts,"%s/s.txt",outputPath.c_str() );
+    char file_name_rs[1024]; sprintf(file_name_rs,"%s/rs.txt",outputPath.c_str() );
+
+    // open files
+    FILE *fp_tl = fopen(file_name_tl,"w");
+    FILE *fp_rl = fopen(file_name_rl,"w");
+    FILE *fp_ts = fopen(file_name_ts,"w");
+    FILE *fp_rs = fopen(file_name_rs,"w");
+
+    // for each segment length do
+    for (int32_t i=0; i<num_lengths; i++) {
+
+        float t_err = 0;
+        float r_err = 0;
+        float num   = 0;
+
+        // for all errors do
+        for (auto it=totalError.begin(); it!=totalError.end(); it++) {
+            if (fabs(it->len-lengths[i])<1.0) {
+                t_err += it->t_err;
+                r_err += it->r_err;
+                num++;
+            }
+        }
+
+        // we require at least 3 values
+        if (num>2.5) {
+            fprintf(fp_tl,"%f %f\n",lengths[i],t_err/num);
+            fprintf(fp_rl,"%f %f\n",lengths[i],r_err/num);
+        }
+    }
+
+    // for each driving speed do (in m/s)
+    for (float speed=2; speed<25; speed+=2) {
+
+        float t_err = 0;
+        float r_err = 0;
+        float num   = 0;
+
+        // for all errors do
+        for (auto it=totalError.begin(); it!=totalError.end(); it++) {
+            if (fabs(it->speed-speed)<2.0) {
+                t_err += it->t_err;
+                r_err += it->r_err;
+                num++;
+            }
+        }
+
+        // we require at least 3 values
+        if (num>2.5) {
+            fprintf(fp_ts,"%f %f\n",speed,t_err/num);
+            fprintf(fp_rs,"%f %f\n",speed,r_err/num);
+        }
+    }
+
+    // close files
+    fclose(fp_tl);
+    fclose(fp_rl);
+    fclose(fp_ts);
+    fclose(fp_rs);
+}
+
+void ComputeLength(const std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> > &trajectory,
+                   std::vector<double> &trajectoryLength)
+{
+    trajectoryLength.push_back(0.);
+    for (int i = 1; i < trajectory.size(); i++)
+    {
+         Eigen::Matrix4d p1 = trajectory[i-1];
+         Eigen::Matrix4d p2 = trajectory[i];
+         Eigen::Vector3d dp = p2.col(3).head(3) - p1.col(3).head(3);
+         double dist = dp.norm();
+        trajectoryLength.push_back(dist + trajectoryLength[i-1]);
+    }
+}
+
+int32_t lastFrameFromSegmentLength(std::vector<double> &dist,int32_t first_frame,float len) {
+    for (int32_t i=first_frame; i<dist.size(); i++)
+        if (dist[i]>dist[first_frame]+len)
+            return i;
+    return -1;
+}
+
+std::vector<errors> calcSequenceErrors (std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> > &posesGt,
+        std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> > &poseResult,std::vector<double>& distGT) {
+    using namespace std;
+    // error vector
+    vector<errors> err;
+
+    float lengths[] = {100,200,300,400,500,600,700,800};
+    int32_t num_lengths = 8;
+
+    // parameters
+    int32_t step_size = 10; // every second
+
+    // for all start positions do
+    for (int32_t first_frame=0; first_frame<posesGt.size(); first_frame+=step_size) {
+
+        // for all segment lengths do
+        for (int32_t i=0; i<num_lengths; i++) {
+
+            // current length
+            float len = lengths[i];
+
+            // compute last frame
+            int32_t last_frame = lastFrameFromSegmentLength(distGT,first_frame,len);
+
+            // continue, if sequence not long enough
+            if (last_frame==-1)
+                continue;
+
+            // compute rotational and translational errors
+            Eigen::Matrix4d pose_delta_gt     = posesGt[first_frame].inverse()*posesGt[last_frame];
+            Eigen::Matrix4d pose_delta_result = poseResult[first_frame].inverse()*poseResult[last_frame];
+            Eigen::Matrix4d pose_error        = pose_delta_result.inverse()*pose_delta_gt;
+            double r_err = acos(max( min(((pose_error.trace()-2)*0.5f),1.0), -1.0));
+            double t_err = pose_error.col(3).head(3).norm();
+
+            // compute speed
+            float num_frames = static_cast<float>(last_frame-first_frame+1);
+            float speed = len/(0.1f*num_frames);
+
+            // write to file
+            err.push_back(errors(first_frame,r_err/len,t_err/len,len,speed));
+        }
+    }
+
+    // return error vector
+    return err;
+}
 
 void LoadTrajectory(const std::string &file,
                     std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Matrix4d> > &trajectory)
@@ -75,10 +246,10 @@ void LoadTrajectory(const std::string &file,
         }
     }
 
-    if(!trajectory[0].isIdentity())
+    if (!trajectory[0].isIdentity())
     {
         Eigen::Matrix4d origin = trajectory[0];
-        for(int i = 1; i < trajectory.size();i++)
+        for (int i = 1; i < trajectory.size(); i++)
         {
             trajectory[i] = origin.inverse() * trajectory[i];
         }
@@ -173,6 +344,6 @@ void ComputeRMSE(std::vector<Eigen::Matrix4d, Eigen::aligned_allocator<Eigen::Ma
         sum_err += kesi.transpose() * kesi;
     }
     double RMSE = sqrt(sum_err / GTs.size());
-    cout<<"RMSE: "<<RMSE<<endl;
+    cout << "RMSE: " << RMSE << endl;
     return;
 }
